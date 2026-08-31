@@ -6,7 +6,7 @@ MAWR is an open-source, Chromium-free web runtime designed for machines and AI a
 
 ## Status
 
-MAWR is **pre-alpha and in its implementation phase**. Phase 0 established the product, architecture, protocol, benchmark, security, contribution, and implementation-planning contracts. The M0 Rust workspace and deterministic verification foundation are implemented; cross-host acceptance awaits the first successful CI matrix run. Runtime implementation has not started, and there is no CLI, MCP server, installable package, or supported compatibility profile yet.
+MAWR is **pre-alpha and in its implementation phase**. Phase 0 established the product, architecture, protocol, benchmark, security, contribution, and implementation-planning contracts. M0 established the Rust workspace and deterministic verification foundation, validated on Windows, Linux, macOS, and the minimum supported Rust version. Runtime implementation has not started, and there is no CLI, MCP server, installable package, or supported compatibility profile yet.
 
 The implemented repository checks are documented in [the development guide](docs/DEVELOPMENT.md). Runtime commands and installation instructions will be documented only after working implementations exist. Product documents describe intended contracts, not shipped runtime behavior or measured performance.
 
