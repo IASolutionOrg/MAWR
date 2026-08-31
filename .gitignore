@@ -1,0 +1,27 @@
+# Private maintainer planning and local notes; public project documentation stays tracked.
+.internal/
+.notes/
+*.local.md
+*.private.md
+
+# Rust and generated benchmark output.
+target/
+**/*.rs.bk
+
+# Coverage, profiling, logs, and temporary output.
+coverage/
+*.profraw
+*.profdata
+*.log
+.tmp/
+
+# Local environment and secrets.
+.env
+.env.*
+!.env.example
+
+# Editor and operating-system files.
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
