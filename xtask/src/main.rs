@@ -56,6 +56,8 @@ fn verify() -> Result<(), String> {
     )?;
     println!("==> core dependency boundary");
     check_core_dependency_boundary(&root)?;
+    println!("==> native static engine boundary");
+    check_native_static_boundary(&root)?;
     run_cargo(&root, "format check", &["fmt", "--all", "--check"])?;
     run_cargo(
         &root,
@@ -119,6 +121,112 @@ fn check_core_dependency_boundary(root: &Path) -> Result<(), String> {
     }
 
     println!("mawr-core has no external dependencies");
+    Ok(())
+}
+
+fn check_native_static_boundary(root: &Path) -> Result<(), String> {
+    let arguments = [
+        "tree",
+        "--locked",
+        "--package",
+        "mawr-native-static",
+        "--edges",
+        "features",
+        "--prefix",
+        "none",
+    ];
+    let output = Command::new("cargo")
+        .args(arguments)
+        .current_dir(root)
+        .output()
+        .map_err(|error| {
+            format!("could not inspect the native engine dependency graph: {error}")
+        })?;
+    if !output.status.success() {
+        return Err(format!(
+            "`cargo {}` failed: {}",
+            arguments.join(" "),
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    let graph = String::from_utf8(output.stdout)
+        .map_err(|_| "native engine dependency graph output was not UTF-8".to_owned())?;
+    let lowercase_graph = graph.to_ascii_lowercase();
+    let forbidden_graph_entries = [
+        "chromiumoxide v",
+        "headless_chrome v",
+        "fantoccini v",
+        "playwright v",
+        "thirtyfour v",
+        "obscura v",
+        "electron v",
+        "reqwest feature \"blocking\"",
+        "reqwest feature \"default\"",
+        "reqwest feature \"http2\"",
+        "reqwest feature \"system-proxy\"",
+    ];
+    if let Some(entry) = forbidden_graph_entries
+        .iter()
+        .find(|entry| lowercase_graph.contains(**entry))
+    {
+        return Err(format!(
+            "native static engine dependency graph contains forbidden entry `{entry}`"
+        ));
+    }
+    if !graph.lines().any(|line| line.starts_with("mawr-core v")) {
+        return Err("native static engine must depend inward on mawr-core".to_owned());
+    }
+
+    let source_root = root.join("crates").join("mawr-native-static").join("src");
+    let mut source_files = Vec::new();
+    collect_files_with_extension(&source_root, OsStr::new("rs"), &mut source_files)?;
+    let forbidden_process_apis = [
+        "std::process",
+        "tokio::process",
+        "process::Command",
+        "Command::new",
+    ];
+    for file in source_files {
+        let source = fs::read_to_string(&file)
+            .map_err(|error| format!("could not read {}: {error}", file.display()))?;
+        if let Some(api) = forbidden_process_apis
+            .iter()
+            .find(|api| source.contains(**api))
+        {
+            return Err(format!(
+                "native static engine source {} contains prohibited process API `{api}`",
+                file.display()
+            ));
+        }
+    }
+    println!("native static engine has no proxy, browser, or subprocess fallback");
+    Ok(())
+}
+
+fn collect_files_with_extension(
+    directory: &Path,
+    extension: &OsStr,
+    files: &mut Vec<PathBuf>,
+) -> Result<(), String> {
+    let entries = fs::read_dir(directory)
+        .map_err(|error| format!("could not read {}: {error}", directory.display()))?;
+    for entry in entries {
+        let entry = entry.map_err(|error| {
+            format!(
+                "could not read an entry in {}: {error}",
+                directory.display()
+            )
+        })?;
+        let path = entry.path();
+        let file_type = entry
+            .file_type()
+            .map_err(|error| format!("could not inspect {}: {error}", path.display()))?;
+        if file_type.is_dir() {
+            collect_files_with_extension(&path, extension, files)?;
+        } else if file_type.is_file() && path.extension() == Some(extension) {
+            files.push(path);
+        }
+    }
     Ok(())
 }
 

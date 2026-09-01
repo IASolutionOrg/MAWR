@@ -1,6 +1,6 @@
 # Compatibility reporting policy
 
-MAWR has typed core contracts but no runtime implementation or compatibility profile yet. This file defines how compatibility will be reported once executable capability evidence exists; it makes no claim of current support.
+MAWR has typed core contracts and a tested native transport boundary, but no supported runtime compatibility profile yet. This file defines how broader compatibility will be reported; local fixture coverage is not a general web-support claim.
 
 ## Capability reporting
 
@@ -19,7 +19,7 @@ Engine capability truthfulness is part of the contract suite. A native-static re
 
 ## Current status
 
-No engine, runtime platform, protocol encoding, or web capability has been implemented or validated. The implemented vocabulary can represent explicit capability status, but it is not evidence that any capability works. The native static engine and its initial boundary are design targets described in [ENGINE-CONTRACT.md](ENGINE-CONTRACT.md), not a current compatibility matrix. Unsupported and untested capabilities must not be inferred from planned scope.
+The native static engine has deterministic local evidence for the bounded HTTP(S), redirect, cookie, URL-encoded form, and download capabilities documented in [NATIVE-STATIC-ENGINE.md](NATIVE-STATIC-ENGINE.md). That evidence covers owned fixtures, not arbitrary public sites or a supported runtime profile. HTML parsing, semantic extraction, actions, JavaScript, layout, rendering, protocol encoding, and end-to-end task compatibility remain unsupported or unimplemented as stated by the engine capability report; they must not be inferred from transport success.
 
 ## Reporting rules
 

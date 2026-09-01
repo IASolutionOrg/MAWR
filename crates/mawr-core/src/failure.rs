@@ -9,6 +9,7 @@ use crate::{
 pub enum OperationKind {
     Observe,
     Navigate,
+    Download,
     Act(ActionKind),
     ReadState,
     StartEngine,
@@ -27,7 +28,11 @@ pub enum AuthorizationReason {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ResourceKind {
     ResponseBytes,
+    ResponseHeaders,
     DownloadBytes,
+    DnsAddresses,
+    FormBytes,
+    SessionCookies,
     SemanticUnits,
     StateRetention,
     ObservationTokens,
@@ -41,9 +46,11 @@ pub enum ResourceKind {
 pub enum NavigationFailureKind {
     InvalidDestination,
     RedirectLoop,
+    TooManyRedirects,
+    MissingRedirectLocation,
     Dns,
     Connection,
-    Tls,
+    SecureConnection,
     Response,
 }
 

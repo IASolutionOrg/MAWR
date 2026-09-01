@@ -1,6 +1,6 @@
 # Architecture
 
-This document owns MAWR's durable system boundaries. The dependency-free M1 domain types exist, but no runtime behavior currently exists; the flow and layers below remain contracts for later MVP implementation rather than claims about shipped behavior. See [CORE-CONTRACTS.md](CORE-CONTRACTS.md) for the exact implemented boundary.
+This document owns MAWR's durable system boundaries. The dependency-free M1 domain types and M2 native HTTP(S) transport exist; parsing and every layer after document acquisition remain contracts for later MVP implementation rather than claims about shipped behavior. See [CORE-CONTRACTS.md](CORE-CONTRACTS.md) and [NATIVE-STATIC-ENGINE.md](NATIVE-STATIC-ENGINE.md) for the exact implemented boundaries.
 
 ## Core flow
 
@@ -40,7 +40,7 @@ engine execution -----> new state -----> meaningful diff
 
 ### Engines
 
-Engines acquire and mutate page state. The mandatory native static engine targets HTTP(S), redirects, HTML parsing, semantic text and controls, forms, cookies, URL resolution, and practical downloads. Its initial boundary excludes JavaScript, layout, visual rendering, screenshots, Canvas, WebGL, and media playback.
+Engines acquire and mutate page state. The mandatory native static engine currently implements bounded HTTP(S) document acquisition, redirects, URL resolution, session cookies, URL-encoded GET/POST form transport, and explicit safe downloads. HTML parsing, semantic text and control production, and mutation semantics remain later work. Its boundary excludes JavaScript, layout, visual rendering, screenshots, Canvas, WebGL, and media playback.
 
 Optional dynamic engines may extend capabilities but remain outside the core model. MAWR does not initially fork Obscura. No adapter may silently launch Chromium or leak vendor types into core contracts. [ENGINE-CONTRACT.md](ENGINE-CONTRACT.md) owns this boundary.
 

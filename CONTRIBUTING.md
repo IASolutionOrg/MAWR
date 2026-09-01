@@ -1,6 +1,6 @@
 # Contributing to MAWR
 
-MAWR is currently pre-alpha. The Rust workspace, deterministic repository verification, and typed core contracts exist, but runtime behavior does not; proposals must distinguish architectural contracts from implemented behavior.
+MAWR is currently pre-alpha. The Rust workspace, deterministic repository verification, typed core contracts, and bounded native HTTP(S) transport exist. HTML parsing, semantic state, actions, and product-facing runtime interfaces do not; proposals must distinguish architectural contracts from implemented behavior.
 
 ## Before changing a contract
 
@@ -25,7 +25,7 @@ Install a stable Rust toolchain with the `rustfmt` and `clippy` components, then
 cargo xtask verify
 ```
 
-This is the canonical deterministic, credential-free repository check. It compiles the workspace, enforces the dependency-free core boundary, checks formatting and lints, runs tests, and validates local documentation links. See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the toolchain policy, individual commands, and the boundary between implemented and planned verification.
+This is the canonical deterministic, credential-free repository check. It compiles the workspace, enforces both the dependency-free core boundary and the native engine's no-browser/no-subprocess boundary, checks formatting and lints, runs tests, and validates local documentation links. See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the toolchain policy, individual commands, and the boundary between implemented and planned verification.
 
 ## Conduct and review
 

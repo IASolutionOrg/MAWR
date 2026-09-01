@@ -1,6 +1,6 @@
 # Security model
 
-This document owns MAWR's technical threat model and security boundaries. Vulnerability disclosure procedure belongs only in [../SECURITY.md](../SECURITY.md). No runtime currently exists; these are requirements for implementation and release.
+This document owns MAWR's technical threat model and security boundaries. Vulnerability disclosure procedure belongs only in [../SECURITY.md](../SECURITY.md). M2 implements the native transport subset described in [NATIVE-STATIC-ENGINE.md](NATIVE-STATIC-ENGINE.md); requirements for parsing, actions, persistence, external engines, and release remain unimplemented.
 
 ## Assets and trust zones
 
@@ -15,6 +15,8 @@ Page text, metadata, scripts, network responses, forms, and downloaded content a
 ## Network boundary and SSRF
 
 Navigation, redirects, subresources, downloads, and structured network access can reach loopback, link-local, private, cloud-metadata, and internal services. URL parsing, DNS resolution and rebinding, redirects, proxy behavior, IPv4/IPv6 forms, and destination changes require one coherent policy. Denials are explicit. Authorized API or network-semantic access preserves origin, user authorization, provenance, and action semantics and never bypasses access control.
+
+The implemented M2 transport applies its destination policy to every redirect hop, requires every resolved address to be authorized, pins approved addresses into the client, verifies the connected peer, disables ambient proxies, and rejects URL credentials. Loopback or arbitrary explicit destinations and ports require construction-time opt-in.
 
 Test Mode is loopback fixture-only by default but must prevent a hostile fixture from pivoting to other private destinations. Any external or private-network access is a separate explicit opt-in.
 
