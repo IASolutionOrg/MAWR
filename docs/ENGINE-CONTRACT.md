@@ -15,7 +15,7 @@ trait BrowserEngine {
 }
 ```
 
-Individual implementation milestones choose precise ownership, async, error, and lifetime shapes. M2 provides the native transport's concrete library surface; this broader sketch is not a frozen public Rust API.
+Individual implementation milestones choose precise ownership, async, error, and lifetime shapes. M2 provides the native transport's concrete library surface and M3 provides its static semantic consumer; this broader sketch is not a frozen public Rust API.
 
 ## MAWR-owned inputs and outputs
 
@@ -45,7 +45,7 @@ No failure may trigger an undeclared Chromium fallback or silently select a diff
 
 ## Native static engine
 
-The native Rust static engine is mandatory. M2 implements HTTP and HTTPS acquisition, redirects, URL-encoded form submission primitives, session cookies, URL resolution, and explicitly authorized downloads with no external engine installed. Its exact current limits and security boundary are documented in [NATIVE-STATIC-ENGINE.md](NATIVE-STATIC-ENGINE.md). HTML parsing, semantic content, and common form-control discovery remain future capabilities.
+The native Rust static engine is mandatory. M2 implements HTTP and HTTPS acquisition, redirects, URL-encoded form submission primitives, session cookies, URL resolution, and explicitly authorized downloads with no external engine installed. M3 consumes its document input and implements bounded static HTML roles, names, state, relationships, destinations, and affordances. Exact boundaries are documented in [NATIVE-STATIC-ENGINE.md](NATIVE-STATIC-ENGINE.md) and [SEMANTIC-HTML.md](SEMANTIC-HTML.md). Stable state identity and mutation remain future capabilities.
 
 Initial explicit non-capabilities include JavaScript execution, CSS layout, visual rendering, screenshots, Canvas, WebGL, and media playback. Pages that require these features must produce truthful capability results.
 

@@ -1,4 +1,3 @@
-use std::io::BufReader;
 use std::sync::Arc;
 
 use mawr_core::{AbsoluteUrl, NavigationFailureKind, OperationFailure, SessionId};
@@ -11,6 +10,7 @@ use tokio::net::TcpListener;
 use tokio::task::JoinHandle;
 use tokio_rustls::TlsAcceptor;
 use tokio_rustls::rustls::ServerConfig;
+use tokio_rustls::rustls::pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject};
 
 const CA_PEM: &[u8] = include_bytes!("fixtures/tls-ca.pem");
 const SERVER_CERT_PEM: &[u8] = include_bytes!("fixtures/tls-server.pem");
@@ -23,12 +23,10 @@ struct TlsFixture {
 
 impl TlsFixture {
     async fn spawn() -> Self {
-        let mut certificates = BufReader::new(SERVER_CERT_PEM);
-        let certificates = rustls_pemfile::certs(&mut certificates)
+        let certificates = CertificateDer::pem_slice_iter(SERVER_CERT_PEM)
             .collect::<Result<Vec<_>, _>>()
             .unwrap();
-        let mut key = BufReader::new(SERVER_KEY_PEM);
-        let key = rustls_pemfile::private_key(&mut key).unwrap().unwrap();
+        let key = PrivateKeyDer::from_pem_slice(SERVER_KEY_PEM).unwrap();
         let server_config = ServerConfig::builder()
             .with_no_client_auth()
             .with_single_cert(certificates, key)
@@ -64,8 +62,7 @@ impl TlsFixture {
     }
 
     fn trusted_engine(&self) -> NativeStaticEngine {
-        let mut ca = BufReader::new(CA_PEM);
-        let ca = rustls_pemfile::certs(&mut ca).next().unwrap().unwrap();
+        let ca = CertificateDer::from_pem_slice(CA_PEM).unwrap();
         let trust =
             TlsTrust::only(vec![DerCertificate::new(ca.as_ref().to_vec()).unwrap()]).unwrap();
         NativeStaticEngine::new(

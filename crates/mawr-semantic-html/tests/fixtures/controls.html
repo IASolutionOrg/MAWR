@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="it">
+<head><title>Accesso MAWR</title><base href="/app/"></head>
+<body>
+  <main aria-label="Area account">
+    <h1 id="title">Accedi</h1>
+    <p id="help">Usa le tue credenziali.</p>
+    <form id="login" action="session">
+      <label for="email">E-mail</label>
+      <input id="email" type="email" placeholder="nome@example.test" required aria-describedby="help">
+      <label>Password <input id="password" type="password" value="super-secret"></label>
+      <label><input id="remember" type="checkbox" checked> Ricordami</label>
+      <button type="submit">Continua</button>
+    </form>
+    <button type="submit" form="login">Invia fuori</button>
+    <a href="../privacy">Privacy</a>
+    <button disabled>Non disponibile</button>
+    <div hidden><button>Invisibile</button></div>
+  </main>
+</body>
+</html>

@@ -58,6 +58,8 @@ fn verify() -> Result<(), String> {
     check_core_dependency_boundary(&root)?;
     println!("==> native static engine boundary");
     check_native_static_boundary(&root)?;
+    println!("==> static semantic extraction boundary");
+    check_semantic_html_boundary(&root)?;
     run_cargo(&root, "format check", &["fmt", "--all", "--check"])?;
     run_cargo(
         &root,
@@ -200,6 +202,81 @@ fn check_native_static_boundary(root: &Path) -> Result<(), String> {
         }
     }
     println!("native static engine has no proxy, browser, or subprocess fallback");
+    Ok(())
+}
+
+fn check_semantic_html_boundary(root: &Path) -> Result<(), String> {
+    let arguments = [
+        "tree",
+        "--locked",
+        "--package",
+        "mawr-semantic-html",
+        "--edges",
+        "features",
+        "--prefix",
+        "none",
+    ];
+    let output = Command::new("cargo")
+        .args(arguments)
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("could not inspect the semantic dependency graph: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "`cargo {}` failed: {}",
+            arguments.join(" "),
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    let graph = String::from_utf8(output.stdout)
+        .map_err(|_| "semantic dependency graph output was not UTF-8".to_owned())?;
+    for required in [
+        "mawr-core v",
+        "mawr-native-static v",
+        "html5ever v0.39.",
+        "ego-tree v0.11.",
+        "encoding_rs v0.8.",
+    ] {
+        if !graph.lines().any(|line| line.starts_with(required)) {
+            return Err(format!(
+                "semantic extractor dependency graph is missing required boundary `{required}`"
+            ));
+        }
+    }
+    let lowercase_graph = graph.to_ascii_lowercase();
+    for forbidden in [
+        "markup5ever_rcdom v",
+        "chromiumoxide v",
+        "headless_chrome v",
+        "fantoccini v",
+        "playwright v",
+        "thirtyfour v",
+    ] {
+        if lowercase_graph.contains(forbidden) {
+            return Err(format!(
+                "semantic extractor dependency graph contains forbidden entry `{forbidden}`"
+            ));
+        }
+    }
+
+    let source_root = root.join("crates").join("mawr-semantic-html").join("src");
+    let mut source_files = Vec::new();
+    collect_files_with_extension(&source_root, OsStr::new("rs"), &mut source_files)?;
+    for file in source_files {
+        let source = fs::read_to_string(&file)
+            .map_err(|error| format!("could not read {}: {error}", file.display()))?;
+        for prohibited in ["std::process", "tokio::process", "Command::new"] {
+            if source.contains(prohibited) {
+                return Err(format!(
+                    "semantic extractor source {} contains prohibited process API `{prohibited}`",
+                    file.display()
+                ));
+            }
+        }
+    }
+    println!(
+        "semantic extractor uses the bounded native/core boundary with no browser or subprocess"
+    );
     Ok(())
 }
 

@@ -1,5 +1,10 @@
 [workspace]
-members = ["crates/mawr-core", "crates/mawr-native-static", "xtask"]
+members = [
+    "crates/mawr-core",
+    "crates/mawr-native-static",
+    "crates/mawr-semantic-html",
+    "xtask",
+]
 resolver = "2"
 
 [workspace.package]

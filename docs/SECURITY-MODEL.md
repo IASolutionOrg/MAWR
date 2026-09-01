@@ -1,6 +1,6 @@
 # Security model
 
-This document owns MAWR's technical threat model and security boundaries. Vulnerability disclosure procedure belongs only in [../SECURITY.md](../SECURITY.md). M2 implements the native transport subset described in [NATIVE-STATIC-ENGINE.md](NATIVE-STATIC-ENGINE.md); requirements for parsing, actions, persistence, external engines, and release remain unimplemented.
+This document owns MAWR's technical threat model and security boundaries. Vulnerability disclosure procedure belongs only in [../SECURITY.md](../SECURITY.md). M2 implements the native transport subset described in [NATIVE-STATIC-ENGINE.md](NATIVE-STATIC-ENGINE.md), and M3 implements bounded static parsing described in [SEMANTIC-HTML.md](SEMANTIC-HTML.md); actions, persistence, external engines, and release remain unimplemented.
 
 ## Assets and trust zones
 

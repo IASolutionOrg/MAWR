@@ -1,6 +1,6 @@
 # Compatibility reporting policy
 
-MAWR has typed core contracts and a tested native transport boundary, but no supported runtime compatibility profile yet. This file defines how broader compatibility will be reported; local fixture coverage is not a general web-support claim.
+MAWR has typed core contracts, a tested native transport boundary, and a bounded static HTML semantic extractor, but no supported runtime compatibility profile yet. This file defines how broader compatibility will be reported; local fixture coverage is not a general web-support claim.
 
 ## Capability reporting
 
@@ -19,7 +19,7 @@ Engine capability truthfulness is part of the contract suite. A native-static re
 
 ## Current status
 
-The native static engine has deterministic local evidence for the bounded HTTP(S), redirect, cookie, URL-encoded form, and download capabilities documented in [NATIVE-STATIC-ENGINE.md](NATIVE-STATIC-ENGINE.md). That evidence covers owned fixtures, not arbitrary public sites or a supported runtime profile. HTML parsing, semantic extraction, actions, JavaScript, layout, rendering, protocol encoding, and end-to-end task compatibility remain unsupported or unimplemented as stated by the engine capability report; they must not be inferred from transport success.
+The native static engine has deterministic evidence for the bounded HTTP(S), redirect, cookie, URL-encoded form, and download capabilities documented in [NATIVE-STATIC-ENGINE.md](NATIVE-STATIC-ENGINE.md). The separate M3 layer has deterministic public-fixture evidence for the exact static semantics documented in [SEMANTIC-HTML.md](SEMANTIC-HTML.md). This evidence does not cover arbitrary public sites or establish a supported runtime profile. Stable state references, actions, JavaScript, layout, stylesheet evaluation, rendering, protocol encoding, and end-to-end task compatibility remain unsupported or unimplemented; they must not be inferred from transport or parser success.
 
 ## Reporting rules
 

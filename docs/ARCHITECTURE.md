@@ -1,6 +1,6 @@
 # Architecture
 
-This document owns MAWR's durable system boundaries. The dependency-free M1 domain types and M2 native HTTP(S) transport exist; parsing and every layer after document acquisition remain contracts for later MVP implementation rather than claims about shipped behavior. See [CORE-CONTRACTS.md](CORE-CONTRACTS.md) and [NATIVE-STATIC-ENGINE.md](NATIVE-STATIC-ENGINE.md) for the exact implemented boundaries.
+This document owns MAWR's durable system boundaries. The dependency-free M1 domain types, M2 native HTTP(S) transport, and M3 static HTML semantic extractor exist; stable state identity and every later layer remain contracts for later MVP implementation rather than claims about shipped behavior. See [CORE-CONTRACTS.md](CORE-CONTRACTS.md), [NATIVE-STATIC-ENGINE.md](NATIVE-STATIC-ENGINE.md), and [SEMANTIC-HTML.md](SEMANTIC-HTML.md) for the exact implemented boundaries.
 
 ## Core flow
 
@@ -40,15 +40,15 @@ engine execution -----> new state -----> meaningful diff
 
 ### Engines
 
-Engines acquire and mutate page state. The mandatory native static engine currently implements bounded HTTP(S) document acquisition, redirects, URL resolution, session cookies, URL-encoded GET/POST form transport, and explicit safe downloads. HTML parsing, semantic text and control production, and mutation semantics remain later work. Its boundary excludes JavaScript, layout, visual rendering, screenshots, Canvas, WebGL, and media playback.
+Engines acquire and mutate page state. The mandatory native static engine implements bounded HTTP(S) document acquisition, redirects, URL resolution, session cookies, URL-encoded GET/POST form transport, and explicit safe downloads. The separate M3 layer now turns its static `DocumentInput` into bounded semantic text and controls; mutation semantics remain later work. The boundary excludes JavaScript, layout, visual rendering, screenshots, Canvas, WebGL, and media playback.
 
 Optional dynamic engines may extend capabilities but remain outside the core model. MAWR does not initially fork Obscura. No adapter may silently launch Chromium or leak vendor types into core contracts. [ENGINE-CONTRACT.md](ENGINE-CONTRACT.md) owns this boundary.
 
 ### Semantic model
 
-The semantic model represents page, region, heading, text, link, form, textbox, checkbox, radio, select, option, button, table, row, cell, list, list item, and alert roles. It retains relationships and action affordances without making the raw DOM the normal agent interface.
+The implemented static semantic model represents page, region, heading, text, link, form, textbox, checkbox, radio, select, option, button, table, row, cell, list, list item, and alert roles. It retains names, descriptions, values, state, relationships, HTTP(S) destinations, source-node provenance, and action affordances without making the raw DOM the normal agent interface. Its standards subset and CSS/script limitations are documented in [SEMANTIC-HTML.md](SEMANTIC-HTML.md).
 
-Elements receive compact stable references. A reference should survive a reasonable state transition when the underlying semantic identity remains, but it is scoped to a session and state history; it is not a giant CSS selector or a globally durable identifier.
+M3 source-node IDs are deterministic only for one parsed document and are not action references. M4 will assign compact stable references that survive reasonable state transitions when semantic identity remains; references stay scoped to a session and state history rather than becoming giant CSS selectors or globally durable identifiers.
 
 ### Local state and diffs
 

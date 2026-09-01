@@ -1,0 +1,19 @@
+[package]
+name = "mawr-semantic-html"
+version = "0.0.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+encoding_rs = { version = "0.8.35", default-features = false, features = ["alloc"] }
+ego-tree = "0.11.0"
+html5ever = "0.39.0"
+mawr-core = { path = "../mawr-core" }
+mawr-native-static = { path = "../mawr-native-static" }
+url = { version = "2.5.8", default-features = false, features = ["std"] }
+
+[lints]
+workspace = true
