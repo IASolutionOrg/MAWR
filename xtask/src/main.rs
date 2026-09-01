@@ -54,6 +54,8 @@ fn verify() -> Result<(), String> {
         "workspace check",
         &["check", "--locked", "--workspace", "--all-targets"],
     )?;
+    println!("==> core dependency boundary");
+    check_core_dependency_boundary(&root)?;
     run_cargo(&root, "format check", &["fmt", "--all", "--check"])?;
     run_cargo(
         &root,
@@ -79,6 +81,44 @@ fn verify() -> Result<(), String> {
     check_documentation(root)?;
     println!("all implemented checks passed");
 
+    Ok(())
+}
+
+fn check_core_dependency_boundary(root: &Path) -> Result<(), String> {
+    let arguments = [
+        "tree",
+        "--locked",
+        "--package",
+        "mawr-core",
+        "--edges",
+        "all",
+        "--prefix",
+        "none",
+    ];
+    let output = Command::new("cargo")
+        .args(arguments)
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("could not inspect the core dependency graph: {error}"))?;
+
+    if !output.status.success() {
+        return Err(format!(
+            "`cargo {}` failed: {}",
+            arguments.join(" "),
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+
+    let graph = String::from_utf8(output.stdout)
+        .map_err(|_| "core dependency graph output was not UTF-8".to_owned())?;
+    let nodes = graph.lines().filter(|line| !line.trim().is_empty()).count();
+    if nodes != 1 || !graph.starts_with("mawr-core v") {
+        return Err(format!(
+            "mawr-core must have no normal, dev, or build dependencies; graph was:\n{graph}"
+        ));
+    }
+
+    println!("mawr-core has no external dependencies");
     Ok(())
 }
 

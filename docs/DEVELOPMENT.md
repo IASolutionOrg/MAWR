@@ -1,6 +1,6 @@
 # Development and verification contract
 
-MAWR is in pre-alpha implementation. The M0 Rust workspace and repository verification entrypoint exist. The runtime, protocol implementation, benchmark harness, and product CLI do not exist yet. This document distinguishes working repository commands from future contracts.
+MAWR is in pre-alpha implementation. The Rust workspace, repository verification entrypoint, and M1 typed core contracts exist. Runtime behavior, protocol encoding, the benchmark harness, and the product CLI do not exist yet. This document distinguishes working repository commands from future contracts.
 
 ## Contributor workflow
 
@@ -19,15 +19,15 @@ Windows, Linux, and macOS are the intended host families. Stable Rust runs the c
 
 ## Workspace and dependency policy
 
-During M0 the virtual workspace contains only the real cross-platform `xtask` package. Runtime packages are added only when an accepted milestone gives them concrete behavior, tests, and an enforced dependency boundary. Empty or speculative crate skeletons are prohibited.
+M0 began with only the real cross-platform `xtask` package. M1 adds `mawr-core`, a private `0.0.0` package containing implemented domain contracts and tests. Product packages are added only when an accepted milestone gives them concrete behavior, tests, and an enforced dependency boundary. Empty or speculative crate skeletons are prohibited.
 
 Every Rust dependency requires a concrete capability that the standard library and existing dependencies cannot reasonably provide, plus maintenance, security, MSRV, and license review. Features must be kept narrow, duplicate dependencies avoided, and default features disabled when they add unused capability. The initial workspace intentionally has no third-party Rust dependencies. Project-authored source is licensed under Apache-2.0 through the repository `LICENSE`; per-file license headers are not required.
 
-Rust code follows standard formatting, linting, type safety, explicit errors, bounded resource use, and minimal unsafe code with documented invariants. Workspace lint policy currently forbids unsafe Rust.
+Rust code follows standard formatting, linting, type safety, explicit errors, bounded resource use, and minimal unsafe code with documented invariants. Workspace lint policy currently forbids unsafe Rust. `mawr-core` has no normal, development, or build dependencies; `cargo xtask verify` enforces that complete dependency-graph boundary.
 
-## Planned test layers
+## Test layers
 
-The implementation will provide terminal-runnable layers for:
+Implemented core tests cover construction, validation, session scoping, exhaustive vocabularies, deterministic equality, bounded inputs, and the dependency boundary. Later milestones will add terminal-runnable layers for:
 
 - unit behavior;
 - integration across owned components;
@@ -44,7 +44,7 @@ Default CI must be deterministic, local, credential-free, cost-free, and free of
 
 ## Implemented verification entrypoint
 
-The canonical M0 command is:
+The canonical repository command is:
 
 ```text
 cargo xtask verify
@@ -54,15 +54,16 @@ It runs the following implemented checks with a locked dependency graph:
 
 ```text
 cargo check --locked --workspace --all-targets
+cargo tree --locked --package mawr-core --edges all --prefix none
 cargo fmt --all --check
 cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
 cargo test --locked --workspace --all-features
 cargo xtask docs
 ```
 
-`cargo xtask docs` validates local targets in Markdown links. The `verify`, `docs`, and `help` subcommands are the complete current `xtask` surface. Possible future subcommands include `smoke`, `benchmark`, `compare`, and `release-check`; they are not runnable commands until their milestone implements and verifies them.
+The dependency-graph check requires `mawr-core` to be the graph's only package. `cargo xtask docs` validates local targets in Markdown links. The `verify`, `docs`, and `help` subcommands are the complete current `xtask` surface. Possible future subcommands include `smoke`, `benchmark`, `compare`, and `release-check`; they are not runnable commands until their milestone implements and verifies them.
 
-The entrypoint returns zero only when every implemented check passes and non-zero on failure. It requires no GUI, credentials, external service, or IDE-specific runner. Machine-readable result manifests, runtime smoke checks, benchmarks, and model-backed opt-in gates remain later milestone work and are not implied by the M0 command.
+The entrypoint returns zero only when every implemented check passes and non-zero on failure. It requires no GUI, credentials, external service, or IDE-specific runner. Machine-readable result manifests, runtime smoke checks, benchmarks, and model-backed opt-in gates remain later milestone work and are not implied by the current command.
 
 Codex App or CLI may invoke the entrypoint and summarize tests, benchmark comparisons, resource regressions, and release blockers. Codex is an orchestrator; exact model-token measurement still comes from an authoritative machine-readable provider source as defined in [BENCHMARKS.md](BENCHMARKS.md).
 

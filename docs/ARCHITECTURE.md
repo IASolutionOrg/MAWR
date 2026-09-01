@@ -1,6 +1,6 @@
 # Architecture
 
-This document owns MAWR's durable system boundaries. No runtime implementation currently exists; the flow and layers below are contracts for the MVP implementation rather than claims about shipped behavior.
+This document owns MAWR's durable system boundaries. The dependency-free M1 domain types exist, but no runtime behavior currently exists; the flow and layers below remain contracts for later MVP implementation rather than claims about shipped behavior. See [CORE-CONTRACTS.md](CORE-CONTRACTS.md) for the exact implemented boundary.
 
 ## Core flow
 
@@ -33,6 +33,10 @@ engine execution -----> new state -----> meaningful diff
 ```
 
 ## Layers and ownership
+
+### Core contracts
+
+`mawr-core` owns serialization-independent identity, capability, semantic, observation, action, transition, failure, and measurement values. It validates session and cross-field invariants without depending on an engine, parser, transport, or external protocol. Its internal Rust API remains intentionally evolvable while later milestones supply real producers and consumers.
 
 ### Engines
 

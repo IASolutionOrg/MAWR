@@ -5,6 +5,7 @@ The public documentation is complete without private maintainer files. Each dura
 - Product vision: [VISION.md](VISION.md)
 - Architectural principles: [PRINCIPLES.md](PRINCIPLES.md)
 - Architecture: [ARCHITECTURE.md](ARCHITECTURE.md)
+- Implemented core contracts: [CORE-CONTRACTS.md](CORE-CONTRACTS.md)
 - Engine contract: [ENGINE-CONTRACT.md](ENGINE-CONTRACT.md)
 - Agent protocol: [PROTOCOL.md](PROTOCOL.md)
 - Encoding architecture: [ENCODING.md](ENCODING.md)
