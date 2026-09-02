@@ -6,7 +6,7 @@ MAWR is an open-source, Chromium-free web runtime designed for machines and AI a
 
 ## Status
 
-MAWR is **pre-alpha and in its implementation phase**. Phase 0 established the project contracts, M0 established the verified Rust workspace, M1 implements the dependency-free typed core contracts, M2 implements bounded native HTTP(S) transport, M3 implements bounded deterministic [static HTML semantic extraction](docs/SEMANTIC-HTML.md), and M4 implements a bounded [local state store with stable session references](docs/STATE-STORE.md). These are Rust library boundaries, not yet a usable browser product: action execution, observation ranking, encoding, CLI, MCP server, installable packaging, and a supported compatibility profile do not exist yet.
+MAWR is **pre-alpha and in its implementation phase**. Phase 0 established the project contracts, M0 established the verified Rust workspace, M1 implements the dependency-free typed core contracts, M2 implements bounded native HTTP(S) transport, M3 implements bounded deterministic [static HTML semantic extraction](docs/SEMANTIC-HTML.md), M4 implements a bounded [local state store with stable session references](docs/STATE-STORE.md), and M5 implements typed [complete observations](docs/OBSERVATIONS.md). These are Rust library boundaries, not yet a usable browser product: action execution, relevance ranking, token budgeting, encoding, CLI, MCP server, installable packaging, and a supported compatibility profile do not exist yet.
 
 The implemented repository checks are documented in [the development guide](docs/DEVELOPMENT.md). Runtime commands and installation instructions will be documented only after working implementations exist. Product documents describe intended contracts, not shipped runtime behavior or measured performance.
 
@@ -27,7 +27,7 @@ MAWR is not a general-purpose browser for humans. Features that only improve hum
 Start with the [documentation index](docs/README.md). The canonical public documents cover:
 
 - [vision](docs/VISION.md) and [principles](docs/PRINCIPLES.md);
-- [architecture](docs/ARCHITECTURE.md), [implemented core contracts](docs/CORE-CONTRACTS.md), [native static engine](docs/NATIVE-STATIC-ENGINE.md), [static HTML semantics](docs/SEMANTIC-HTML.md), [local state](docs/STATE-STORE.md), [engine contract](docs/ENGINE-CONTRACT.md), and [agent protocol](docs/PROTOCOL.md);
+- [architecture](docs/ARCHITECTURE.md), [implemented core contracts](docs/CORE-CONTRACTS.md), [native static engine](docs/NATIVE-STATIC-ENGINE.md), [static HTML semantics](docs/SEMANTIC-HTML.md), [local state](docs/STATE-STORE.md), [complete observations](docs/OBSERVATIONS.md), [engine contract](docs/ENGINE-CONTRACT.md), and [agent protocol](docs/PROTOCOL.md);
 - [encoding](docs/ENCODING.md), [benchmark methodology](docs/BENCHMARKS.md), and the [scorecard](docs/SCORECARD.md);
 - [security model](docs/SECURITY-MODEL.md), [compatibility policy](docs/COMPATIBILITY.md), and [development contract](docs/DEVELOPMENT.md).
 

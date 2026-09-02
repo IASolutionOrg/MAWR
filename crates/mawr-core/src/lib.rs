@@ -36,12 +36,13 @@ pub use measurement::{
     Measurement, MeasurementKind, MeasurementSet, MeasurementSource, UnavailableReason,
 };
 pub use observation::{
-    FullObservationReason, Observation, ObservationBasis, ObservationRequest, OmissionCategory,
-    OmissionSummary,
+    FullObservationReason, Observation, ObservationBasis, ObservationChanges, ObservationRequest,
+    OmissionCategory, OmissionSummary,
 };
 pub use semantic::{
-    ActionAffordances, ElementState, Property, PropertyUnknownReason, Provenance, Relationship,
-    RelationshipKind, SemanticRole, SemanticUnit, SemanticValue,
+    ActionAffordances, ElementState, MAX_SEMANTIC_DESCRIPTION_BYTES, MAX_SEMANTIC_NAME_BYTES,
+    Property, PropertyUnknownReason, Provenance, Relationship, RelationshipKind, SemanticRole,
+    SemanticUnit, SemanticValue,
 };
 pub use text::{BoundedText, NonEmptyText, SensitiveText};
 pub use transition::{ResetReason, StateTransition, TransitionCause};

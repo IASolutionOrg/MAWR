@@ -9,15 +9,15 @@ This document records the implemented M1 boundary in `mawr-core`. It complements
 - non-zero session IDs and session-scoped state, page, and element identities;
 - structurally validated absolute URL values and page/engine identity;
 - an exhaustive capability vocabulary with supported, unsupported, or constrained status;
-- semantic roles, provenance, values, properties, relationships, and action affordances;
-- typed observation requests and observations with explicit full, incremental, or reset basis;
+- semantic roles, parent references, provenance, tri-state names/descriptions/destinations, values, relationships, and action affordances;
+- typed observation requests and observations with explicit full, incremental-placeholder, or reset basis and change status;
 - bounded observation budgets, unit collections, text, relationships, and capability constraints;
 - typed single actions with expected-state and session validation;
 - state transitions with explicit causes and reset reasons;
 - structured operational failure classes and retry dispositions;
 - exact, estimated, or unavailable measurement values.
 
-Constructors validate cross-field invariants. References cannot cross sessions, capability reports belong to one engine, observation units are deterministically ordered and bounded, and sensitive action values and URL details have redacted debug output. Ambiguous absence is represented explicitly where it affects meaning, such as unavailable measurements, unknown semantic properties, unsupported capabilities, and observation resets.
+Constructors validate cross-field invariants. References and semantic parents cannot cross sessions, capability reports belong to one engine, observation units are deterministically bulk-ordered and bounded, and sensitive action values, semantic content, and URL details have redacted debug output. Ambiguous absence is represented explicitly where it affects meaning, such as unavailable measurements, unknown semantic properties, unsupported capabilities, deferred changes, and observation resets.
 
 ## Dependency and encoding boundary
 
@@ -27,6 +27,6 @@ Serialization is intentionally absent. Compact JSON remains a future boundary ow
 
 ## Deliberate limitations
 
-M1 implements contracts, validation, and deterministic value behavior only. It does not navigate, resolve or authorize URLs, fetch or parse documents, extract semantics, retain state, rank relevance, encode messages, execute actions, expose a CLI or MCP server, or claim runtime/platform/web compatibility.
+`mawr-core` implements contracts, validation, and deterministic value behavior only. Other implemented private crates now navigate static HTTP, extract semantics, retain state, and construct complete observations. Core itself does not perform those operations, rank relevance, encode messages, execute actions, expose a CLI or MCP server, or claim runtime/platform/web compatibility.
 
-The current URL type verifies only bounded absolute structure. Full standards-compliant URL parsing, resolution, destination policy, HTTP behavior, and download handling belong to the native static engine milestone. Observation construction from live semantic state, batching, and incremental diff generation likewise remain later milestones.
+The current URL type verifies only bounded absolute structure. Full standards-compliant URL parsing, resolution, destination policy, HTTP behavior, and download handling belong to the native static engine. M5 constructs complete observations, while relevance, batching, semantic diff generation, and public encoding remain later milestones.

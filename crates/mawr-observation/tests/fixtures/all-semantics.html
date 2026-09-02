@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head><title>Semantic catalog</title></head>
+  <body>
+    <main aria-label="Main region">
+      <h1>Catalog</h1>
+      <div>Plain text</div>
+      <p id="link-help">Opens documentation</p>
+      <a href="/docs" aria-describedby="link-help">Documentation</a>
+      <form id="profile">
+        <label for="name">Name</label>
+        <input id="name" value="Ada" required>
+        <label><input type="checkbox" checked> Enabled</label>
+        <label><input type="radio" name="mode" checked> Automatic</label>
+        <label for="choice">Choice</label>
+        <select id="choice">
+          <option selected>First</option>
+          <option>Second</option>
+        </select>
+        <button type="submit">Save</button>
+      </form>
+      <table>
+        <tr><td>Cell value</td></tr>
+      </table>
+      <ul><li>List item</li></ul>
+      <section aria-label="Secondary region">Section content</section>
+      <div role="alert">Operation failed</div>
+    </main>
+  </body>
+</html>

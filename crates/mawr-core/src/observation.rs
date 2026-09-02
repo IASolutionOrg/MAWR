@@ -83,6 +83,18 @@ pub enum ObservationBasis {
     },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ObservationChanges {
+    NotRequested,
+    NotComputed {
+        base: StateId,
+    },
+    Reset {
+        requested_base: StateId,
+        reason: ResetReason,
+    },
+}
+
 impl ObservationBasis {
     fn validate_session(self, state: StateId) -> Result<(), ValidationError> {
         let base = match self {
@@ -185,6 +197,7 @@ pub struct Observation {
     engine: EngineIdentity,
     capabilities: CapabilityReport,
     basis: ObservationBasis,
+    changes: ObservationChanges,
     unit_limit: CollectionLimit,
     summary: Option<BoundedText<MAX_SUMMARY_BYTES>>,
     units: Vec<SemanticUnit>,
@@ -218,12 +231,25 @@ impl Observation {
         }
         basis.validate_session(state)?;
 
+        let changes = match basis {
+            ObservationBasis::Full(_) => ObservationChanges::NotRequested,
+            ObservationBasis::Incremental { base } => ObservationChanges::NotComputed { base },
+            ObservationBasis::Reset {
+                requested_base,
+                reason,
+            } => ObservationChanges::Reset {
+                requested_base,
+                reason,
+            },
+        };
+
         Ok(Self {
             state,
             page,
             engine,
             capabilities,
             basis,
+            changes,
             unit_limit,
             summary: None,
             units: Vec::new(),
@@ -238,7 +264,29 @@ impl Observation {
     }
 
     pub fn with_unit(mut self, unit: SemanticUnit) -> Result<Self, ValidationError> {
-        if unit.reference().session() != self.state.session() {
+        self = self.with_units(std::iter::once(unit))?;
+        Ok(self)
+    }
+
+    pub fn with_units(
+        mut self,
+        units: impl IntoIterator<Item = SemanticUnit>,
+    ) -> Result<Self, ValidationError> {
+        let units = units.into_iter().collect::<Vec<_>>();
+        if self.units.len().saturating_add(units.len()) > self.unit_limit.get() as usize {
+            return Err(ValidationError::new(
+                "semantic_units",
+                ValidationIssue::OutOfRange {
+                    min: 0,
+                    max: self.unit_limit.get(),
+                    actual: self.units.len().saturating_add(units.len()) as u64,
+                },
+            ));
+        }
+        if let Some(unit) = units
+            .iter()
+            .find(|unit| unit.reference().session() != self.state.session())
+        {
             return Err(ValidationError::new(
                 "semantic_unit",
                 ValidationIssue::SessionMismatch {
@@ -247,29 +295,17 @@ impl Observation {
                 },
             ));
         }
-        match self
+        self.units.extend(units);
+        self.units.sort_unstable_by_key(SemanticUnit::reference);
+        if self
             .units
-            .binary_search_by_key(&unit.reference(), SemanticUnit::reference)
+            .windows(2)
+            .any(|pair| pair[0].reference() == pair[1].reference())
         {
-            Ok(_) => {
-                return Err(ValidationError::new(
-                    "semantic_unit",
-                    ValidationIssue::Duplicate,
-                ));
-            }
-            Err(index) => {
-                if self.units.len() >= self.unit_limit.get() as usize {
-                    return Err(ValidationError::new(
-                        "semantic_units",
-                        ValidationIssue::OutOfRange {
-                            min: 0,
-                            max: self.unit_limit.get(),
-                            actual: self.units.len() as u64 + 1,
-                        },
-                    ));
-                }
-                self.units.insert(index, unit);
-            }
+            return Err(ValidationError::new(
+                "semantic_unit",
+                ValidationIssue::Duplicate,
+            ));
         }
         Ok(self)
     }
@@ -309,6 +345,11 @@ impl Observation {
     #[must_use]
     pub const fn basis(&self) -> ObservationBasis {
         self.basis
+    }
+
+    #[must_use]
+    pub const fn changes(&self) -> ObservationChanges {
+        self.changes
     }
 
     #[must_use]

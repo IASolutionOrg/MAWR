@@ -755,6 +755,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "mawr-observation"
+version = "0.0.0"
+dependencies = [
+ "mawr-core",
+ "mawr-semantic-html",
+ "mawr-state",
+]
+
+[[package]]
 name = "mawr-semantic-html"
 version = "0.0.0"
 dependencies = [

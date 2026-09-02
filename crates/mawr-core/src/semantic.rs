@@ -1,8 +1,12 @@
 use std::collections::BTreeSet;
 
-use crate::{ActionKind, BoundedText, ElementRef, NonEmptyText, ValidationError, ValidationIssue};
+use crate::{
+    AbsoluteUrl, ActionKind, BoundedText, ElementRef, NonEmptyText, ValidationError,
+    ValidationIssue,
+};
 
-const MAX_SEMANTIC_NAME_BYTES: usize = 512;
+pub const MAX_SEMANTIC_NAME_BYTES: usize = 512;
+pub const MAX_SEMANTIC_DESCRIPTION_BYTES: usize = 2_048;
 const MAX_SEMANTIC_VALUE_BYTES: usize = 4_096;
 const MAX_RELATIONSHIPS_PER_UNIT: usize = 128;
 
@@ -246,16 +250,19 @@ impl ActionAffordances {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct SemanticUnit {
     reference: ElementRef,
+    parent: Option<ElementRef>,
     role: SemanticRole,
     provenance: Provenance,
-    name: Option<NonEmptyText<MAX_SEMANTIC_NAME_BYTES>>,
+    name: Property<BoundedText<MAX_SEMANTIC_NAME_BYTES>>,
+    description: Property<BoundedText<MAX_SEMANTIC_DESCRIPTION_BYTES>>,
     value: SemanticValue,
     state: ElementState,
     relationships: BTreeSet<Relationship>,
     affordances: ActionAffordances,
+    destination: Property<AbsoluteUrl>,
 }
 
 impl SemanticUnit {
@@ -263,18 +270,60 @@ impl SemanticUnit {
     pub fn new(reference: ElementRef, role: SemanticRole, provenance: Provenance) -> Self {
         Self {
             reference,
+            parent: None,
             role,
             provenance,
-            name: None,
+            name: Property::NotApplicable,
+            description: Property::NotApplicable,
             value: SemanticValue::Absent,
             state: ElementState::new(),
             relationships: BTreeSet::new(),
             affordances: ActionAffordances::default(),
+            destination: Property::NotApplicable,
         }
     }
 
     pub fn with_name(mut self, name: impl Into<String>) -> Result<Self, ValidationError> {
-        self.name = Some(NonEmptyText::new(name, "semantic_name")?);
+        let name = NonEmptyText::<MAX_SEMANTIC_NAME_BYTES>::new(name, "semantic_name")?;
+        self.name = Property::Known(BoundedText::new(name.into_inner(), "semantic_name")?);
+        Ok(self)
+    }
+
+    #[must_use]
+    pub fn with_name_property(
+        mut self,
+        name: Property<BoundedText<MAX_SEMANTIC_NAME_BYTES>>,
+    ) -> Self {
+        self.name = name;
+        self
+    }
+
+    #[must_use]
+    pub fn with_description_property(
+        mut self,
+        description: Property<BoundedText<MAX_SEMANTIC_DESCRIPTION_BYTES>>,
+    ) -> Self {
+        self.description = description;
+        self
+    }
+
+    pub fn with_parent(mut self, parent: ElementRef) -> Result<Self, ValidationError> {
+        if parent.session() != self.reference.session() {
+            return Err(ValidationError::new(
+                "semantic_parent",
+                ValidationIssue::SessionMismatch {
+                    expected: self.reference.session().get(),
+                    actual: parent.session().get(),
+                },
+            ));
+        }
+        if parent == self.reference {
+            return Err(ValidationError::new(
+                "semantic_parent",
+                ValidationIssue::Duplicate,
+            ));
+        }
+        self.parent = Some(parent);
         Ok(self)
     }
 
@@ -329,8 +378,19 @@ impl SemanticUnit {
     }
 
     #[must_use]
+    pub fn with_destination(mut self, destination: Property<AbsoluteUrl>) -> Self {
+        self.destination = destination;
+        self
+    }
+
+    #[must_use]
     pub const fn reference(&self) -> ElementRef {
         self.reference
+    }
+
+    #[must_use]
+    pub const fn parent(&self) -> Option<ElementRef> {
+        self.parent
     }
 
     #[must_use]
@@ -344,8 +404,13 @@ impl SemanticUnit {
     }
 
     #[must_use]
-    pub fn name(&self) -> Option<&str> {
-        self.name.as_ref().map(NonEmptyText::as_str)
+    pub const fn name(&self) -> &Property<BoundedText<MAX_SEMANTIC_NAME_BYTES>> {
+        &self.name
+    }
+
+    #[must_use]
+    pub const fn description(&self) -> &Property<BoundedText<MAX_SEMANTIC_DESCRIPTION_BYTES>> {
+        &self.description
     }
 
     #[must_use]
@@ -365,6 +430,30 @@ impl SemanticUnit {
     #[must_use]
     pub const fn affordances(&self) -> &ActionAffordances {
         &self.affordances
+    }
+
+    #[must_use]
+    pub const fn destination(&self) -> &Property<AbsoluteUrl> {
+        &self.destination
+    }
+}
+
+impl std::fmt::Debug for SemanticUnit {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("SemanticUnit")
+            .field("reference", &self.reference)
+            .field("parent", &self.parent)
+            .field("role", &self.role)
+            .field("provenance", &self.provenance)
+            .field("name", &"<semantic-content>")
+            .field("description", &"<semantic-content>")
+            .field("value", &"<semantic-content>")
+            .field("state", &self.state)
+            .field("relationships", &self.relationships)
+            .field("affordances", &self.affordances)
+            .field("destination", &self.destination)
+            .finish()
     }
 }
 

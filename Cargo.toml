@@ -4,6 +4,7 @@ members = [
     "crates/mawr-native-static",
     "crates/mawr-semantic-html",
     "crates/mawr-state",
+    "crates/mawr-observation",
     "xtask",
 ]
 resolver = "2"

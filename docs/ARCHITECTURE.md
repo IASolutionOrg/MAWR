@@ -1,6 +1,6 @@
 # Architecture
 
-This document owns MAWR's durable system boundaries. The dependency-free M1 domain types, M2 native HTTP(S) transport, M3 static HTML semantic extractor, and M4 bounded local state store exist; observation construction and every later layer remain contracts for later MVP implementation rather than claims about shipped behavior. See [CORE-CONTRACTS.md](CORE-CONTRACTS.md), [NATIVE-STATIC-ENGINE.md](NATIVE-STATIC-ENGINE.md), [SEMANTIC-HTML.md](SEMANTIC-HTML.md), and [STATE-STORE.md](STATE-STORE.md) for the exact implemented boundaries.
+This document owns MAWR's durable system boundaries. The dependency-free M1 domain types, M2 native HTTP(S) transport, M3 static HTML semantic extractor, M4 bounded local state store, and M5 complete observation builder exist; relevance, action, encoding, and every later layer remain contracts for later MVP implementation rather than claims about shipped behavior. See [CORE-CONTRACTS.md](CORE-CONTRACTS.md), [NATIVE-STATIC-ENGINE.md](NATIVE-STATIC-ENGINE.md), [SEMANTIC-HTML.md](SEMANTIC-HTML.md), [STATE-STORE.md](STATE-STORE.md), and [OBSERVATIONS.md](OBSERVATIONS.md) for the exact implemented boundaries.
 
 ## Core flow
 
@@ -52,7 +52,7 @@ M3 source-node IDs are deterministic only for one parsed document and are not ac
 
 ### Local state and future diffs
 
-`mawr-state` retains full semantic documents locally behind explicit state and page identities. Retention is bounded by both state count and total semantic units. Current-state reference lookup distinguishes stale states, missing references, and session mismatches; evicted history is never silently addressed. Cross-state diff payloads remain an M5+ concern. [STATE-STORE.md](STATE-STORE.md) owns the implemented lifecycle.
+`mawr-state` retains full semantic documents locally behind explicit state and page identities. Retention is bounded by both state count and total semantic units. Current-state reference lookup distinguishes stale states, missing references, and session mismatches; evicted history is never silently addressed. M5 exposes a typed change placeholder and reset basis, while semantic diff payloads remain an M9 concern. [STATE-STORE.md](STATE-STORE.md) owns the implemented lifecycle.
 
 ### Relevance and budgeting
 
@@ -62,7 +62,7 @@ Budgeting selects complete semantic units before encoding. It records what was o
 
 ### Observation and action boundary
 
-An observation contains a state ID, concise page summary, selected elements, meaningful changes, omission summary, and metrics. Actions are typed operations such as navigate, follow, fill, select, check, uncheck, submit, and press. Deterministic actions may be batched, with expected-state validation preventing stale execution. [PROTOCOL.md](PROTOCOL.md) owns the agent contract.
+The implemented M5 full observation contains state/page/engine identity, a bounded page summary, every semantic unit, capabilities, zero-omission metadata, construction measurements, and an explicit no-change/incremental-placeholder/reset basis. Selection and semantic change payloads remain later work. Actions are typed operations such as navigate, follow, fill, select, check, uncheck, submit, and press. Deterministic actions may be batched, with expected-state validation preventing stale execution. [OBSERVATIONS.md](OBSERVATIONS.md) owns the implemented builder and [PROTOCOL.md](PROTOCOL.md) owns the future agent contract.
 
 ### Encoding boundary
 

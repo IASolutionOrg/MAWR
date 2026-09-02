@@ -52,6 +52,11 @@ impl SemanticStateStore {
     }
 
     #[must_use]
+    pub const fn engine(&self) -> &EngineIdentity {
+        &self.engine
+    }
+
+    #[must_use]
     pub fn current(&self) -> Option<&StoredState> {
         self.states.back()
     }
