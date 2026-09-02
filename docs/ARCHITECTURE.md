@@ -1,6 +1,6 @@
 # Architecture
 
-This document owns MAWR's durable system boundaries. The dependency-free M1 domain types, M2 native HTTP(S) transport, M3 static HTML semantic extractor, M4 bounded local state store, M5 complete observation builder, and M6 deterministic relevance/budget selector exist; actions, semantic diffs, encoding, and every later layer remain contracts for later MVP implementation rather than claims about shipped behavior. See [CORE-CONTRACTS.md](CORE-CONTRACTS.md), [NATIVE-STATIC-ENGINE.md](NATIVE-STATIC-ENGINE.md), [SEMANTIC-HTML.md](SEMANTIC-HTML.md), [STATE-STORE.md](STATE-STORE.md), [OBSERVATIONS.md](OBSERVATIONS.md), and [RELEVANCE.md](RELEVANCE.md) for the exact implemented boundaries.
+This document owns MAWR's durable system boundaries. The dependency-free M1 domain types, M2 native HTTP(S) transport, M3 static HTML semantic extractor, M4 bounded local state store, M5 complete observation builder, M6 deterministic relevance/budget selector, and M7 authorized static action executor exist; batching, semantic diffs, encoding, and every later layer remain contracts for later MVP implementation rather than claims about shipped behavior. See [CORE-CONTRACTS.md](CORE-CONTRACTS.md), [NATIVE-STATIC-ENGINE.md](NATIVE-STATIC-ENGINE.md), [SEMANTIC-HTML.md](SEMANTIC-HTML.md), [STATE-STORE.md](STATE-STORE.md), [OBSERVATIONS.md](OBSERVATIONS.md), [RELEVANCE.md](RELEVANCE.md), and [ACTIONS.md](ACTIONS.md) for the exact implemented boundaries.
 
 ## Core flow
 
@@ -40,7 +40,7 @@ engine execution -----> new state -----> meaningful diff
 
 ### Engines
 
-Engines acquire and mutate page state. The mandatory native static engine implements bounded HTTP(S) document acquisition, redirects, URL resolution, session cookies, URL-encoded GET/POST form transport, and explicit safe downloads. The separate M3 layer now turns its static `DocumentInput` into bounded semantic text and controls; mutation semantics remain later work. The boundary excludes JavaScript, layout, visual rendering, screenshots, Canvas, WebGL, and media playback.
+Engines acquire and mutate page state. The mandatory native static engine implements bounded HTTP(S) document acquisition, redirects, URL resolution, session cookies, URL-encoded GET/POST form transport, and explicit safe downloads. M3 turns its static `DocumentInput` into bounded semantic text and controls, while M7 executes the supported static mutations and returns through extraction/state. The boundary excludes JavaScript, layout, visual rendering, screenshots, Canvas, WebGL, and media playback.
 
 Optional dynamic engines may extend capabilities but remain outside the core model. MAWR does not initially fork Obscura. No adapter may silently launch Chromium or leak vendor types into core contracts. [ENGINE-CONTRACT.md](ENGINE-CONTRACT.md) owns this boundary.
 
@@ -62,7 +62,7 @@ Budgeting selects complete semantic units and their structural/label dependencie
 
 ### Observation and action boundary
 
-The implemented M5 full observation contains state/page/engine identity, a bounded page summary, every semantic unit, capabilities, zero-omission metadata, construction measurements, and an explicit no-change/incremental-placeholder/reset basis. M6 derives a selected observation without mutating that reference input; semantic change payloads remain later work. Actions are typed operations such as navigate, follow, fill, select, check, uncheck, submit, and press. Deterministic actions may be batched, with expected-state validation preventing stale execution. [OBSERVATIONS.md](OBSERVATIONS.md) owns the full builder, [RELEVANCE.md](RELEVANCE.md) owns selection, and [PROTOCOL.md](PROTOCOL.md) owns the future agent contract.
+The implemented M5 full observation contains state/page/engine identity, a bounded page summary, every semantic unit, capabilities, zero-omission metadata, construction measurements, and an explicit no-change/incremental-placeholder/reset basis. M6 derives a selected observation without mutating that reference input; semantic change payloads remain later work. M7 executes one typed navigate, follow, fill, select, check, uncheck, submit, or supported press after expected-state, reference, semantic, capability, validity, and caller-authorization preflight. Batching remains M8. [OBSERVATIONS.md](OBSERVATIONS.md) owns the full builder, [RELEVANCE.md](RELEVANCE.md) owns selection, [ACTIONS.md](ACTIONS.md) owns single-action execution, and [PROTOCOL.md](PROTOCOL.md) owns the future agent contract.
 
 ### Encoding boundary
 

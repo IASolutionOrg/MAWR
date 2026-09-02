@@ -55,11 +55,21 @@ fn aria_boolean(value: Option<&str>) -> Property<bool> {
     }
 }
 
-fn is_disabled(element: ElementRef<'_>) -> bool {
+pub(crate) fn is_disabled(element: ElementRef<'_>) -> bool {
     if element.attr("disabled").is_some()
         || element
             .attr("aria-disabled")
             .is_some_and(|value| value == "true")
+    {
+        return true;
+    }
+    if element.value().name() == "option"
+        && element
+            .ancestors()
+            .filter_map(ElementRef::wrap)
+            .any(|ancestor| {
+                ancestor.value().name() == "optgroup" && ancestor.attr("disabled").is_some()
+            })
     {
         return true;
     }

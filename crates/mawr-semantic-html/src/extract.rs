@@ -6,7 +6,7 @@ use mawr_core::{
     AbsoluteUrl, ActionAffordances, ActionKind, BoundedText, ElementState, Measurement,
     MeasurementKind, MeasurementSet, MeasurementSource, OperationFailure, Property,
     PropertyUnknownReason, Provenance, RelationshipKind, ResourceKind, SemanticRole, SemanticValue,
-    UnavailableReason,
+    SensitiveText, UnavailableReason,
 };
 use url::Url;
 
@@ -16,12 +16,14 @@ use crate::decode;
 use crate::dom::{ElementRef, Html, Node};
 use crate::model::{
     ExtractedRelationship, ExtractedSemanticUnit, ExtractionDiagnostics, ExtractionNotice,
-    ExtractionNoticeKind, MAX_AUTHOR_ID_BYTES, MAX_DESCRIPTION_BYTES, MAX_NAME_BYTES, RoleOrigin,
-    SemanticDocument, SourceNodeId,
+    ExtractionNoticeKind, MAX_AUTHOR_ID_BYTES, MAX_CONTROL_NAME_BYTES, MAX_CONTROL_VALUE_BYTES,
+    MAX_DESCRIPTION_BYTES, MAX_NAME_BYTES, RoleOrigin, SemanticDocument, SourceNodeId,
+    StaticFormEncoding, StaticFormMethod, StaticHiddenControl, StaticInteraction,
+    StaticInteractionKind,
 };
 use crate::normalize::{bounded_optional, known_name, normalize, truncate};
 use crate::roles::{input_role, is_labelable, name_from_content, semantic_role};
-use crate::state::{element_state, option_selected};
+use crate::state::{element_state, is_disabled, option_selected};
 use crate::tree::{first_element, hidden, nearest_element_parent, visible_text};
 
 pub(crate) fn extract(
@@ -122,6 +124,7 @@ pub(crate) fn extract(
         relationships: Vec::new(),
         affordances: ActionAffordances::default(),
         destination: Property::Known(source.document_url.clone()),
+        interaction: StaticInteraction::none(),
     });
 
     for node in document.tree.root().descendants().skip(1) {
@@ -141,6 +144,8 @@ pub(crate) fn extract(
             ResourceKind::SemanticUnits,
         )?;
     }
+
+    let hidden_controls = extract_hidden_controls(&document, &inventory);
 
     let relationship_count = units
         .iter()
@@ -179,6 +184,7 @@ pub(crate) fn extract(
         title: title_text,
         language,
         units,
+        hidden_controls,
         notices,
         diagnostics,
     })
@@ -273,7 +279,8 @@ fn unit_for_node(
     let value = semantic_value(element, role);
     let state = element_state(element, role);
     let destination = destination(element, role, base_url, source, context)?;
-    let affordances = affordances(element, role, &state, &destination);
+    let interaction = static_interaction(element, role, context.inventory);
+    let affordances = affordances(&interaction, &state, &destination);
     let mut relationships = labelled_by;
     relationships.extend(idref_relationships(
         element,
@@ -312,6 +319,7 @@ fn unit_for_node(
         relationships,
         affordances,
         destination,
+        interaction,
     }))
 }
 
@@ -343,6 +351,7 @@ fn text_unit(node: NodeRef<'_, Node>, source: SourceNodeId) -> Option<ExtractedS
         relationships: Vec::new(),
         affordances: ActionAffordances::default(),
         destination: Property::NotApplicable,
+        interaction: StaticInteraction::none(),
     })
 }
 
@@ -760,42 +769,234 @@ fn resolve_url(
         .map_err(OperationFailure::InvalidInput)
 }
 
-fn affordances(
+fn static_interaction(
     element: ElementRef<'_>,
     role: SemanticRole,
+    inventory: &Inventory,
+) -> StaticInteraction {
+    let tag = element.value().name();
+    let input_type = element.attr("type").unwrap_or("text").to_ascii_lowercase();
+    let kind = match (tag, input_type.as_str()) {
+        ("a", _) if role == SemanticRole::Link => StaticInteractionKind::Link,
+        ("form", _) => StaticInteractionKind::Form,
+        ("textarea", _) => StaticInteractionKind::TextControl,
+        ("input", "checkbox") => StaticInteractionKind::Checkbox,
+        ("input", "radio") => StaticInteractionKind::Radio,
+        ("input", "file") => StaticInteractionKind::FileControl,
+        ("input", "submit") => StaticInteractionKind::SubmitButton,
+        ("input", "image") => StaticInteractionKind::ImageButton,
+        ("input", "reset") => StaticInteractionKind::ResetButton,
+        ("input", "button") => StaticInteractionKind::Button,
+        ("input", _) if role == SemanticRole::Textbox => StaticInteractionKind::TextControl,
+        ("select", _) => StaticInteractionKind::Select,
+        ("option", _) => StaticInteractionKind::Option,
+        ("button", _) if is_submit_button(element) => StaticInteractionKind::SubmitButton,
+        ("button", "reset") => StaticInteractionKind::ResetButton,
+        ("button", _) => StaticInteractionKind::Button,
+        _ => StaticInteractionKind::None,
+    };
+    let owner = match kind {
+        StaticInteractionKind::TextControl
+        | StaticInteractionKind::FileControl
+        | StaticInteractionKind::Checkbox
+        | StaticInteractionKind::Radio
+        | StaticInteractionKind::Select
+        | StaticInteractionKind::SubmitButton
+        | StaticInteractionKind::ImageButton
+        | StaticInteractionKind::ResetButton
+        | StaticInteractionKind::Button => {
+            associated_form(element, inventory).map(|form| inventory.source(form.id()))
+        }
+        StaticInteractionKind::Option => element
+            .ancestors()
+            .filter_map(ElementRef::wrap)
+            .find(|ancestor| ancestor.value().name() == "select")
+            .map(|select| inventory.source(select.id())),
+        _ => None,
+    };
+    let uses_name = matches!(
+        kind,
+        StaticInteractionKind::TextControl
+            | StaticInteractionKind::FileControl
+            | StaticInteractionKind::Checkbox
+            | StaticInteractionKind::Radio
+            | StaticInteractionKind::Select
+            | StaticInteractionKind::SubmitButton
+            | StaticInteractionKind::ImageButton
+            | StaticInteractionKind::ResetButton
+            | StaticInteractionKind::Button
+    );
+    let raw_name = uses_name
+        .then(|| element.attr("name").filter(|value| !value.is_empty()))
+        .flatten();
+    let name = raw_name.and_then(|value| BoundedText::new(value, "control_name").ok());
+    let raw_value = match kind {
+        StaticInteractionKind::TextControl if tag == "textarea" => raw_text_content(element),
+        StaticInteractionKind::Checkbox | StaticInteractionKind::Radio => {
+            element.attr("value").unwrap_or("on").to_owned()
+        }
+        StaticInteractionKind::Option => element
+            .attr("value")
+            .map_or_else(|| visible_text(*element, true), str::to_owned),
+        StaticInteractionKind::SubmitButton
+        | StaticInteractionKind::ImageButton
+        | StaticInteractionKind::ResetButton
+        | StaticInteractionKind::Button => element.attr("value").unwrap_or_default().to_owned(),
+        StaticInteractionKind::TextControl => element.attr("value").unwrap_or_default().to_owned(),
+        _ => String::new(),
+    };
+    let carries_value = matches!(
+        kind,
+        StaticInteractionKind::TextControl
+            | StaticInteractionKind::Checkbox
+            | StaticInteractionKind::Radio
+            | StaticInteractionKind::Option
+            | StaticInteractionKind::SubmitButton
+            | StaticInteractionKind::ImageButton
+            | StaticInteractionKind::ResetButton
+            | StaticInteractionKind::Button
+    );
+    let submission_value = carries_value
+        .then(|| SensitiveText::new(raw_value, "control_value").ok())
+        .flatten();
+    let form = if kind == StaticInteractionKind::Form {
+        Some(element)
+    } else {
+        associated_form(element, inventory)
+    };
+    let method = form.map(|form| {
+        let value = if kind == StaticInteractionKind::SubmitButton {
+            element.attr("formmethod").or_else(|| form.attr("method"))
+        } else {
+            form.attr("method")
+        };
+        match value.unwrap_or("get").to_ascii_lowercase().as_str() {
+            "get" => StaticFormMethod::Get,
+            "post" => StaticFormMethod::Post,
+            _ => StaticFormMethod::Unsupported,
+        }
+    });
+    let encoding = form.map(|form| {
+        let value = if kind == StaticInteractionKind::SubmitButton {
+            element.attr("formenctype").or_else(|| form.attr("enctype"))
+        } else {
+            form.attr("enctype")
+        };
+        match value
+            .unwrap_or("application/x-www-form-urlencoded")
+            .to_ascii_lowercase()
+            .as_str()
+        {
+            "application/x-www-form-urlencoded" => StaticFormEncoding::UrlEncoded,
+            "multipart/form-data" => StaticFormEncoding::Multipart,
+            "text/plain" => StaticFormEncoding::TextPlain,
+            _ => StaticFormEncoding::Unsupported,
+        }
+    });
+    let no_validate = form.is_some_and(|form| {
+        form.attr("novalidate").is_some()
+            || kind == StaticInteractionKind::SubmitButton
+                && element.attr("formnovalidate").is_some()
+    });
+    let supported = raw_name.is_none_or(|_| name.is_some())
+        && (!carries_value || submission_value.is_some())
+        && (kind != StaticInteractionKind::TextControl || element.attr("dirname").is_none())
+        && (kind != StaticInteractionKind::Option || owner.is_some());
+    StaticInteraction {
+        kind,
+        owner,
+        name,
+        submission_value,
+        method,
+        encoding,
+        multiple: element.attr("multiple").is_some(),
+        password: tag == "input" && input_type == "password",
+        download: tag == "a" && element.attr("download").is_some(),
+        no_validate,
+        supported,
+    }
+}
+
+fn extract_hidden_controls(document: &Html, inventory: &Inventory) -> Vec<StaticHiddenControl> {
+    document
+        .tree
+        .root()
+        .descendants()
+        .filter_map(ElementRef::wrap)
+        .filter(|element| {
+            element.value().name() == "input"
+                && element
+                    .attr("type")
+                    .is_some_and(|value| value.eq_ignore_ascii_case("hidden"))
+                && !is_disabled(*element)
+        })
+        .filter_map(|element| {
+            let form = associated_form(element, inventory)?;
+            let raw_name = element.attr("name").filter(|value| !value.is_empty())?;
+            let raw_value = element.attr("value").unwrap_or_default();
+            let name = BoundedText::<MAX_CONTROL_NAME_BYTES>::new(raw_name, "control_name").ok();
+            let value =
+                SensitiveText::<MAX_CONTROL_VALUE_BYTES>::new(raw_value, "control_value").ok();
+            Some(StaticHiddenControl {
+                source: inventory.source(element.id()),
+                owner: inventory.source(form.id()),
+                supported: name.is_some() && value.is_some(),
+                name,
+                value,
+            })
+        })
+        .collect()
+}
+
+fn affordances(
+    interaction: &StaticInteraction,
     state: &ElementState,
     destination: &Property<AbsoluteUrl>,
 ) -> ActionAffordances {
-    if state.disabled() == &Property::Known(true) {
+    if state.disabled() == &Property::Known(true) || !interaction.supported() {
         return ActionAffordances::default();
     }
     let mut actions = ActionAffordances::default();
-    match role {
-        SemanticRole::Link if matches!(destination, Property::Known(_)) => {
+    match interaction.kind() {
+        StaticInteractionKind::Link if matches!(destination, Property::Known(_)) => {
             actions = actions.with(ActionKind::Follow)
         }
-        SemanticRole::Textbox => actions = actions.with(ActionKind::Fill),
-        SemanticRole::Checkbox => {
+        StaticInteractionKind::TextControl => actions = actions.with(ActionKind::Fill),
+        StaticInteractionKind::Checkbox => {
             actions = actions.with(if state.checked() == &Property::Known(true) {
                 ActionKind::Uncheck
             } else {
                 ActionKind::Check
             })
         }
-        SemanticRole::Radio => actions = actions.with(ActionKind::Check),
-        SemanticRole::Select | SemanticRole::Option => actions = actions.with(ActionKind::Select),
-        SemanticRole::Form if matches!(destination, Property::Known(_)) => {
+        StaticInteractionKind::Radio => actions = actions.with(ActionKind::Check),
+        StaticInteractionKind::Select | StaticInteractionKind::Option => {
+            actions = actions.with(ActionKind::Select)
+        }
+        StaticInteractionKind::Form if matches!(destination, Property::Known(_)) => {
             actions = actions.with(ActionKind::Submit);
         }
-        SemanticRole::Button => {
+        StaticInteractionKind::SubmitButton
+        | StaticInteractionKind::ImageButton
+        | StaticInteractionKind::ResetButton
+        | StaticInteractionKind::Button => {
             actions = actions.with(ActionKind::Press);
-            if is_submit_button(element) && matches!(destination, Property::Known(_)) {
+            if interaction.kind() == StaticInteractionKind::SubmitButton
+                && matches!(destination, Property::Known(_))
+            {
                 actions = actions.with(ActionKind::Submit);
             }
         }
         _ => {}
     }
     actions
+}
+
+fn raw_text_content(element: ElementRef<'_>) -> String {
+    element
+        .descendants()
+        .filter_map(|node| node.value().as_text())
+        .collect()
 }
 
 fn is_submit_button(element: ElementRef<'_>) -> bool {

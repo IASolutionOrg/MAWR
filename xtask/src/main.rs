@@ -66,6 +66,8 @@ fn verify() -> Result<(), String> {
     check_observation_boundary(&root)?;
     println!("==> deterministic relevance boundary");
     check_relevance_boundary(&root)?;
+    println!("==> deterministic actions boundary");
+    check_actions_boundary(&root)?;
     run_cargo(&root, "format check", &["fmt", "--all", "--check"])?;
     run_cargo(
         &root,
@@ -469,6 +471,78 @@ fn check_relevance_boundary(root: &Path) -> Result<(), String> {
         }
     }
     println!("relevance depends only on typed core data with no model, encoding, or subprocess");
+    Ok(())
+}
+
+fn check_actions_boundary(root: &Path) -> Result<(), String> {
+    let arguments = [
+        "tree",
+        "--locked",
+        "--package",
+        "mawr-actions",
+        "--depth",
+        "1",
+        "--edges",
+        "normal",
+        "--prefix",
+        "none",
+    ];
+    let output = Command::new("cargo")
+        .args(arguments)
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("could not inspect the actions dependency graph: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "`cargo {}` failed: {}",
+            arguments.join(" "),
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    let graph = String::from_utf8(output.stdout)
+        .map_err(|_| "actions dependency graph output was not UTF-8".to_owned())?;
+    let dependencies = graph
+        .lines()
+        .skip(1)
+        .map(|line| line.split_whitespace().next().unwrap_or_default())
+        .collect::<Vec<_>>();
+    if dependencies
+        != [
+            "mawr-core",
+            "mawr-native-static",
+            "mawr-semantic-html",
+            "mawr-state",
+        ]
+    {
+        return Err(format!(
+            "mawr-actions must depend directly only on core/native/semantic/state; graph was:\n{graph}"
+        ));
+    }
+
+    let source_root = root.join("crates").join("mawr-actions").join("src");
+    let mut source_files = Vec::new();
+    collect_files_with_extension(&source_root, OsStr::new("rs"), &mut source_files)?;
+    for file in source_files {
+        let source = fs::read_to_string(&file)
+            .map_err(|error| format!("could not read {}: {error}", file.display()))?;
+        for prohibited in [
+            "std::process",
+            "tokio::process",
+            "Command::new",
+            "serde::",
+            "serde_json",
+            "chromium",
+            "playwright",
+        ] {
+            if source.contains(prohibited) {
+                return Err(format!(
+                    "actions source {} contains prohibited runtime/encoding/browser API `{prohibited}`",
+                    file.display()
+                ));
+            }
+        }
+    }
+    println!("actions compose only typed static boundaries with no encoding or browser fallback");
     Ok(())
 }
 

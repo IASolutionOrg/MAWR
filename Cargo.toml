@@ -6,6 +6,7 @@ members = [
     "crates/mawr-state",
     "crates/mawr-observation",
     "crates/mawr-relevance",
+    "crates/mawr-actions",
     "xtask",
 ]
 resolver = "2"

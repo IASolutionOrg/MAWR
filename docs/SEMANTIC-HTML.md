@@ -26,11 +26,13 @@ Whitespace is flattened and values are UTF-8 byte bounded. `aria-describedby` su
 
 Controls expose disabled, checked, selected, expanded, required, and invalid state where the static markup supports it. Disabled fieldset inheritance honors the first-legend exception; an otherwise unselected single select exposes its first enabled option as selected. Links and form destinations resolve against the first valid HTTP(S) `base` element and then the final transport URL. Non-HTTP(S) destinations are unsupported and receive no follow affordance.
 
+The M7 extension retains a separate secret-safe native interaction record for actual HTML links, forms, controls, options, and buttons. It includes bounded exact submission name/value, form or select ownership, effective form method/encoding, multiple/password/download flags, and submitter overrides. ARIA-only roles remain observable semantics but no longer receive a native mutation affordance. Hidden successful controls are retained in a document-level form catalog without becoming observable semantic units; their debug representation redacts names and values. Local fill/check/radio/select transitions update this typed record and visible semantic state without retaining a raw mutable DOM.
+
 Relationships retain label, description, control, form ownership, option/select, row/table, cell/row, and list-item/list provenance. Every DOM node receives a deterministic pre-order `SourceNodeId`; this is parser provenance, not a stable action reference. A semantic element also exposes its bounded author `id` as known only when unique, ambiguous when duplicated, and unsupported when it exceeds the identity bound. M4 consumes that hint without exposing raw DOM identity and converts source provenance into stable `ElementRef` values.
 
 ## Visibility and honesty boundary
 
-The extractor excludes `hidden`, `aria-hidden=true`, hidden inputs, script, style, template, and supported inline declarations for `display:none`, `visibility:hidden|collapse`, and `content-visibility:hidden`. It does not evaluate stylesheets, layout, generated content, shadow DOM, scripts, or live control state. A stylesheet produces an `ExternalCssVisibilityUnknown` notice so static visibility is not presented as browser-rendered truth.
+The extractor excludes `hidden`, `aria-hidden=true`, hidden inputs, script, style, template, and supported inline declarations for `display:none`, `visibility:hidden|collapse`, and `content-visibility:hidden` from semantic units. M7's private hidden-control catalog is the narrow exception needed for standards-oriented form submission; it is not exposed as page content. The extractor does not evaluate stylesheets, layout, generated content, shadow DOM, scripts, or live control state. A stylesheet produces an `ExternalCssVisibilityUnknown` notice so static visibility is not presented as browser-rendered truth.
 
 ## Resource and measurement boundary
 

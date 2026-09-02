@@ -189,6 +189,11 @@ pub enum OperationFailure {
 
 impl OperationFailure {
     #[must_use]
+    pub fn invalid_input(field: &'static str, issue: ValidationIssue) -> Self {
+        Self::InvalidInput(ValidationError::new(field, issue))
+    }
+
+    #[must_use]
     pub fn session_mismatch(field: &'static str, expected: SessionId, actual: SessionId) -> Self {
         Self::InvalidInput(ValidationError::new(
             field,

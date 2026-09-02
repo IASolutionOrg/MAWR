@@ -241,6 +241,12 @@ impl ActionAffordances {
     }
 
     #[must_use]
+    pub fn without(mut self, action: ActionKind) -> Self {
+        self.0.remove(&action);
+        self
+    }
+
+    #[must_use]
     pub fn contains(&self, action: ActionKind) -> bool {
         self.0.contains(&action)
     }

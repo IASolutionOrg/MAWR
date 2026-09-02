@@ -739,6 +739,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "mawr-actions"
+version = "0.0.0"
+dependencies = [
+ "mawr-core",
+ "mawr-native-static",
+ "mawr-semantic-html",
+ "mawr-state",
+ "tokio",
+]
+
+[[package]]
 name = "mawr-core"
 version = "0.0.0"
 
