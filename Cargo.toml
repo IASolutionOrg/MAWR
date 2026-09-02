@@ -3,6 +3,7 @@ members = [
     "crates/mawr-core",
     "crates/mawr-native-static",
     "crates/mawr-semantic-html",
+    "crates/mawr-state",
     "xtask",
 ]
 resolver = "2"

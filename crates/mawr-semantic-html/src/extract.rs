@@ -16,8 +16,8 @@ use crate::decode;
 use crate::dom::{ElementRef, Html, Node};
 use crate::model::{
     ExtractedRelationship, ExtractedSemanticUnit, ExtractionDiagnostics, ExtractionNotice,
-    ExtractionNoticeKind, MAX_DESCRIPTION_BYTES, MAX_NAME_BYTES, RoleOrigin, SemanticDocument,
-    SourceNodeId,
+    ExtractionNoticeKind, MAX_AUTHOR_ID_BYTES, MAX_DESCRIPTION_BYTES, MAX_NAME_BYTES, RoleOrigin,
+    SemanticDocument, SourceNodeId,
 };
 use crate::normalize::{bounded_optional, known_name, normalize, truncate};
 use crate::roles::{input_role, is_labelable, name_from_content, semantic_role};
@@ -111,6 +111,7 @@ pub(crate) fn extract(
     units.push(ExtractedSemanticUnit {
         source: SourceNodeId::new(1),
         parent_source: None,
+        author_id: Property::NotApplicable,
         role: SemanticRole::Page,
         role_origin: RoleOrigin::EngineDerived,
         provenance: Provenance::EngineDerived,
@@ -300,6 +301,7 @@ fn unit_for_node(
     Ok(Some(ExtractedSemanticUnit {
         source,
         parent_source: None,
+        author_id: author_identity(element, context.inventory),
         role,
         role_origin: origin,
         provenance: Provenance::UntrustedWebContent,
@@ -330,6 +332,7 @@ fn text_unit(node: NodeRef<'_, Node>, source: SourceNodeId) -> Option<ExtractedS
     Some(ExtractedSemanticUnit {
         source,
         parent_source: None,
+        author_id: Property::NotApplicable,
         role: SemanticRole::Text,
         role_origin: RoleOrigin::NativeHtml,
         provenance: Provenance::UntrustedWebContent,
@@ -341,6 +344,28 @@ fn text_unit(node: NodeRef<'_, Node>, source: SourceNodeId) -> Option<ExtractedS
         affordances: ActionAffordances::default(),
         destination: Property::NotApplicable,
     })
+}
+
+fn author_identity(
+    element: ElementRef<'_>,
+    inventory: &Inventory,
+) -> Property<BoundedText<MAX_AUTHOR_ID_BYTES>> {
+    let Some(value) = element.attr("id") else {
+        return Property::NotApplicable;
+    };
+    if value.is_empty() || value.chars().any(char::is_whitespace) {
+        return Property::Unknown(PropertyUnknownReason::Unsupported);
+    }
+    if inventory
+        .ids
+        .get(value)
+        .is_none_or(|matches| matches.len() != 1)
+    {
+        return Property::Unknown(PropertyUnknownReason::Ambiguous);
+    }
+    BoundedText::new(value, "author_id")
+        .map(Property::Known)
+        .unwrap_or(Property::Unknown(PropertyUnknownReason::Unsupported))
 }
 
 fn accessible_name(

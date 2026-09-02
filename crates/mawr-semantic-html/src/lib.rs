@@ -16,7 +16,8 @@ mod tree;
 pub use config::{ConfigError, ExtractionLimits};
 pub use model::{
     ExtractedRelationship, ExtractedSemanticUnit, ExtractionDiagnostics, ExtractionNotice,
-    ExtractionNoticeKind, RoleOrigin, SemanticDocument, SourceNodeId,
+    ExtractionNoticeKind, MAX_AUTHOR_ID_BYTES, MAX_DESCRIPTION_BYTES, MAX_NAME_BYTES, RoleOrigin,
+    SemanticDocument, SourceNodeId,
 };
 
 use mawr_core::{AbsoluteUrl, OperationFailure, SessionId};

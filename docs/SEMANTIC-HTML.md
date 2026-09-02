@@ -26,7 +26,7 @@ Whitespace is flattened and values are UTF-8 byte bounded. `aria-describedby` su
 
 Controls expose disabled, checked, selected, expanded, required, and invalid state where the static markup supports it. Disabled fieldset inheritance honors the first-legend exception; an otherwise unselected single select exposes its first enabled option as selected. Links and form destinations resolve against the first valid HTTP(S) `base` element and then the final transport URL. Non-HTTP(S) destinations are unsupported and receive no follow affordance.
 
-Relationships retain label, description, control, form ownership, option/select, row/table, cell/row, and list-item/list provenance. Every DOM node receives a deterministic pre-order `SourceNodeId`; this is parser provenance, not a stable action reference. M4 owns cross-state identity and conversion into stable `ElementRef` values.
+Relationships retain label, description, control, form ownership, option/select, row/table, cell/row, and list-item/list provenance. Every DOM node receives a deterministic pre-order `SourceNodeId`; this is parser provenance, not a stable action reference. A semantic element also exposes its bounded author `id` as known only when unique, ambiguous when duplicated, and unsupported when it exceeds the identity bound. M4 consumes that hint without exposing raw DOM identity and converts source provenance into stable `ElementRef` values.
 
 ## Visibility and honesty boundary
 

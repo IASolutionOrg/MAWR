@@ -1,8 +1,8 @@
 use std::num::NonZeroU64;
 
 use crate::{
-    ActionKind, Capability, ElementRef, EngineIdentity, NonEmptyText, StateId, UnsupportedReason,
-    ValidationError,
+    ActionKind, Capability, ElementRef, EngineIdentity, NonEmptyText, SessionId, StateId,
+    UnsupportedReason, ValidationError, ValidationIssue,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -188,6 +188,17 @@ pub enum OperationFailure {
 }
 
 impl OperationFailure {
+    #[must_use]
+    pub fn session_mismatch(field: &'static str, expected: SessionId, actual: SessionId) -> Self {
+        Self::InvalidInput(ValidationError::new(
+            field,
+            ValidationIssue::SessionMismatch {
+                expected: expected.get(),
+                actual: actual.get(),
+            },
+        ))
+    }
+
     #[must_use]
     pub const fn class(&self) -> FailureClass {
         match self {

@@ -8,6 +8,7 @@ use mawr_core::{
 
 pub const MAX_NAME_BYTES: usize = 512;
 pub const MAX_DESCRIPTION_BYTES: usize = 2_048;
+pub const MAX_AUTHOR_ID_BYTES: usize = 256;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SourceNodeId(NonZeroU32);
@@ -90,6 +91,7 @@ impl ExtractedRelationship {
 pub struct ExtractedSemanticUnit {
     pub(crate) source: SourceNodeId,
     pub(crate) parent_source: Option<SourceNodeId>,
+    pub(crate) author_id: Property<BoundedText<MAX_AUTHOR_ID_BYTES>>,
     pub(crate) role: SemanticRole,
     pub(crate) role_origin: RoleOrigin,
     pub(crate) provenance: Provenance,
@@ -110,6 +112,10 @@ impl ExtractedSemanticUnit {
     #[must_use]
     pub const fn parent_source(&self) -> Option<SourceNodeId> {
         self.parent_source
+    }
+    #[must_use]
+    pub const fn author_id(&self) -> &Property<BoundedText<MAX_AUTHOR_ID_BYTES>> {
+        &self.author_id
     }
     #[must_use]
     pub const fn role(&self) -> SemanticRole {
@@ -159,6 +165,7 @@ impl fmt::Debug for ExtractedSemanticUnit {
             .debug_struct("ExtractedSemanticUnit")
             .field("source", &self.source)
             .field("parent_source", &self.parent_source)
+            .field("author_id", &"<web-content>")
             .field("role", &self.role)
             .field("role_origin", &self.role_origin)
             .field("provenance", &self.provenance)

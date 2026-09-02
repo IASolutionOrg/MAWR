@@ -1,6 +1,6 @@
 # Architecture
 
-This document owns MAWR's durable system boundaries. The dependency-free M1 domain types, M2 native HTTP(S) transport, and M3 static HTML semantic extractor exist; stable state identity and every later layer remain contracts for later MVP implementation rather than claims about shipped behavior. See [CORE-CONTRACTS.md](CORE-CONTRACTS.md), [NATIVE-STATIC-ENGINE.md](NATIVE-STATIC-ENGINE.md), and [SEMANTIC-HTML.md](SEMANTIC-HTML.md) for the exact implemented boundaries.
+This document owns MAWR's durable system boundaries. The dependency-free M1 domain types, M2 native HTTP(S) transport, M3 static HTML semantic extractor, and M4 bounded local state store exist; observation construction and every later layer remain contracts for later MVP implementation rather than claims about shipped behavior. See [CORE-CONTRACTS.md](CORE-CONTRACTS.md), [NATIVE-STATIC-ENGINE.md](NATIVE-STATIC-ENGINE.md), [SEMANTIC-HTML.md](SEMANTIC-HTML.md), and [STATE-STORE.md](STATE-STORE.md) for the exact implemented boundaries.
 
 ## Core flow
 
@@ -48,11 +48,11 @@ Optional dynamic engines may extend capabilities but remain outside the core mod
 
 The implemented static semantic model represents page, region, heading, text, link, form, textbox, checkbox, radio, select, option, button, table, row, cell, list, list item, and alert roles. It retains names, descriptions, values, state, relationships, HTTP(S) destinations, source-node provenance, and action affordances without making the raw DOM the normal agent interface. Its standards subset and CSS/script limitations are documented in [SEMANTIC-HTML.md](SEMANTIC-HTML.md).
 
-M3 source-node IDs are deterministic only for one parsed document and are not action references. M4 will assign compact stable references that survive reasonable state transitions when semantic identity remains; references stay scoped to a session and state history rather than becoming giant CSS selectors or globally durable identifiers.
+M3 source-node IDs are deterministic only for one parsed document and are not action references. M4 maps them to compact `ElementRef` values that survive a defined conservative set of transitions when semantic identity is unique. References remain scoped to one session, are never recycled in that session, and do not become CSS selectors or globally durable identifiers.
 
-### Local state and diffs
+### Local state and future diffs
 
-Full semantic state remains local. States have explicit IDs and bounded retention. A subsequent observation can name a prior state and receive meaningful additions, removals, changes, alerts, and action results. If the requested base is unavailable, MAWR returns an explicit reset/full-state condition rather than fabricating a diff.
+`mawr-state` retains full semantic documents locally behind explicit state and page identities. Retention is bounded by both state count and total semantic units. Current-state reference lookup distinguishes stale states, missing references, and session mismatches; evicted history is never silently addressed. Cross-state diff payloads remain an M5+ concern. [STATE-STORE.md](STATE-STORE.md) owns the implemented lifecycle.
 
 ### Relevance and budgeting
 

@@ -8,6 +8,7 @@ The public documentation is complete without private maintainer files. Each dura
 - Implemented core contracts: [CORE-CONTRACTS.md](CORE-CONTRACTS.md)
 - Implemented native static transport: [NATIVE-STATIC-ENGINE.md](NATIVE-STATIC-ENGINE.md)
 - Implemented static HTML semantics: [SEMANTIC-HTML.md](SEMANTIC-HTML.md)
+- Implemented local state and stable references: [STATE-STORE.md](STATE-STORE.md)
 - Engine contract: [ENGINE-CONTRACT.md](ENGINE-CONTRACT.md)
 - Agent protocol: [PROTOCOL.md](PROTOCOL.md)
 - Encoding architecture: [ENCODING.md](ENCODING.md)
