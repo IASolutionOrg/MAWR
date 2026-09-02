@@ -744,6 +744,7 @@ version = "0.0.0"
 dependencies = [
  "mawr-core",
  "mawr-native-static",
+ "mawr-observation",
  "mawr-semantic-html",
  "mawr-state",
  "tokio",

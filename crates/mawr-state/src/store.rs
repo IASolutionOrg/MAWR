@@ -110,7 +110,7 @@ impl SemanticStateStore {
         };
         let state_id = next_state_id(self.session, &mut next_state_sequence)?;
 
-        let state = build_state(state_id, page.clone(), document, matched.references);
+        let state = build_state(state_id, page.clone(), reset, document, matched.references);
         let transition = StateTransition::new(
             previous_state_id,
             state_id,
@@ -200,6 +200,41 @@ impl SemanticStateStore {
         self.states.iter().map(StoredState::id)
     }
 
+    pub fn reset_reason_between(
+        &self,
+        base: StateId,
+        target: StateId,
+    ) -> Result<Option<ResetReason>, OperationFailure> {
+        if base.session() != self.session || target.session() != self.session {
+            let actual = if base.session() != self.session {
+                base.session()
+            } else {
+                target.session()
+            };
+            return Err(OperationFailure::session_mismatch(
+                "reset_range_session",
+                self.session,
+                actual,
+            ));
+        }
+        if base.sequence() > target.sequence() {
+            return Err(OperationFailure::invalid_input(
+                "reset_range",
+                mawr_core::ValidationIssue::InvalidTransition,
+            ));
+        }
+        self.state(base)?;
+        self.state(target)?;
+        Ok(self
+            .states
+            .iter()
+            .filter(|state| {
+                state.id().sequence() > base.sequence()
+                    && state.id().sequence() <= target.sequence()
+            })
+            .find_map(StoredState::reset))
+    }
+
     fn evict_to_limits(&mut self) -> Vec<StateId> {
         let mut evicted = Vec::new();
         while self.states.len() > self.config.retained_states()
@@ -249,6 +284,7 @@ fn effective_cause(
 fn build_state(
     id: StateId,
     page: PageIdentity,
+    reset: Option<ResetReason>,
     document: SemanticDocument,
     references: Vec<ElementRef>,
 ) -> StoredState {
@@ -286,6 +322,7 @@ fn build_state(
     StoredState {
         id,
         page,
+        reset,
         document,
         units,
         reference_index,

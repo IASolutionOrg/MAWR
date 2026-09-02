@@ -7,12 +7,14 @@ use mawr_actions::{
 };
 use mawr_core::{
     AbsoluteUrl, Action, ActionBatch, ActionKind, ActionRequest, AuthorizationReason,
-    BatchFailurePolicy, Capability, CapabilityStatus, ElementRef, FailureClass, OperationFailure,
-    PressCommand, Property, SemanticRole, SessionId, TransitionCause,
+    BatchFailurePolicy, Capability, CapabilityStatus, ElementRef, FailureClass, ObservationChanges,
+    ObservationRequest, OperationFailure, PressCommand, Property, SemanticRole, SessionId,
+    TransitionCause,
 };
 use mawr_native_static::{
     CancellationToken, DestinationPolicy, NativeStaticConfig, NativeStaticEngine, NavigationRequest,
 };
+use mawr_observation::{FullObservationBuilder, FullObservationConfig, SemanticSnapshot};
 use mawr_semantic_html::{HtmlSemanticExtractor, StaticInteractionKind};
 use mawr_state::{SemanticStateStore, StateStoreConfig};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -1066,4 +1068,63 @@ async fn authorization_denial_is_atomic_redacted_and_concurrent_batches_go_stale
     assert_eq!(loser.failure().failure().class(), FailureClass::StaleState);
     assert_eq!(current_state(&executor), winner_state);
     assert!(server.take_requests().is_empty());
+}
+
+#[tokio::test]
+async fn local_action_transition_produces_a_reconstructable_validation_diff() {
+    let server = FixtureServer::spawn().await;
+    let mut executor = executor(&server, 108, allow).await;
+    server.take_requests();
+    let builder = FullObservationBuilder::new(
+        executor.capabilities().clone(),
+        FullObservationConfig::default(),
+    );
+    let base_state = current_state(&executor);
+    let base = builder
+        .build(
+            executor.store(),
+            &ObservationRequest::new(SessionId::new(108).unwrap()),
+        )
+        .unwrap()
+        .into_observation();
+    let query = reference(&executor, "query");
+    executor
+        .execute(
+            request(&executor, Action::fill(query, "").unwrap()),
+            &CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+
+    let incremental = builder
+        .build(
+            executor.store(),
+            &ObservationRequest::new(SessionId::new(108).unwrap())
+                .since_state(base_state)
+                .unwrap(),
+        )
+        .unwrap();
+    let ObservationChanges::Computed(changes) = incremental.observation().changes() else {
+        panic!("local action must produce computed semantic changes");
+    };
+    assert_eq!(changes.updated(), &[query]);
+    let changed_query = incremental.observation().units().first().unwrap();
+    assert_eq!(changed_query.reference(), query);
+    assert_eq!(changed_query.state().invalid(), &Property::Known(true));
+    assert!(server.take_requests().is_empty());
+
+    let reconstructed = SemanticSnapshot::from_full(&base)
+        .unwrap()
+        .apply(incremental.observation())
+        .unwrap();
+    let target = builder
+        .build(
+            executor.store(),
+            &ObservationRequest::new(SessionId::new(108).unwrap()),
+        )
+        .unwrap();
+    assert_eq!(
+        reconstructed,
+        SemanticSnapshot::from_full(target.observation()).unwrap()
+    );
 }

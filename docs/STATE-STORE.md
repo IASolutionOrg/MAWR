@@ -21,7 +21,7 @@ An exact final URL change, an explicit `Navigation` cause, or an explicit reset 
 
 Every update receives a monotonically increasing `StateId`. Failed validation is transactional: it does not publish a state or consume state, page, or element sequences. Retained states are limited by both `retained_states` and aggregate `retained_units`; inserting a state evicts the oldest history until both limits hold. A single document larger than the unit-retention limit fails explicitly instead of evicting or truncating itself.
 
-Retained history supports later observation and diff construction. Only the current state may resolve a reference for future action execution. Lookup returns structured outcomes:
+Retained history supports complete observation and M9 diff construction. Stored transitions retain reset metadata so a requested base that crosses navigation or ambiguous identity produces the exact full-reset reason. Only the current state may resolve a reference for future action execution. Lookup returns structured outcomes:
 
 - a session mismatch is invalid input;
 - an evicted or non-current expected state is `StaleState` with the current state when available;

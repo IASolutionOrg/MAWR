@@ -10,7 +10,7 @@ This document records the implemented M1 boundary in `mawr-core`. It complements
 - structurally validated absolute URL values and page/engine identity;
 - an exhaustive capability vocabulary with supported, unsupported, or constrained status;
 - semantic roles, parent references, provenance, tri-state names/descriptions/destinations, values, relationships, and action affordances;
-- typed observation requests and observations with explicit full, incremental-placeholder, or reset basis and change status;
+- typed observation requests and observations with explicit full, computed incremental, or reset basis, bounded change sets, and semantic order;
 - bounded observation budgets, unit collections, text, relationships, and capability constraints;
 - typed single actions and bounded ordered batches with expected-state, session, and failure-policy validation;
 - state transitions with explicit causes and reset reasons;
@@ -29,4 +29,4 @@ Serialization is intentionally absent. Compact JSON remains a future boundary ow
 
 `mawr-core` implements contracts, validation, and deterministic value behavior only. Other implemented private crates now navigate static HTTP, extract semantics, retain state, construct complete observations, and select observation subsets. Core itself does not perform those operations, rank relevance, encode messages, execute actions, expose a CLI or MCP server, or claim runtime/platform/web compatibility.
 
-The current URL type verifies only bounded absolute structure. Full standards-compliant URL parsing, resolution, destination policy, HTTP behavior, and download handling belong to the native static engine. M5 constructs complete observations, M6 selects complete units under an explicit diagnostic token budget, and M8 composes 1–64 typed actions under an explicit stop/continue policy; semantic diff generation and public encoding remain later milestones.
+The current URL type verifies only bounded absolute structure. Full standards-compliant URL parsing, resolution, destination policy, HTTP behavior, and download handling belong to the native static engine. M5 constructs complete observations, M6 selects complete units under an explicit diagnostic token budget, M8 composes 1–64 typed actions under an explicit stop/continue policy, and M9 constructs bounded semantic changes; public encoding remains a later milestone.

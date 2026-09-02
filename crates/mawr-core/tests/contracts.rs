@@ -86,13 +86,27 @@ fn same_inputs_produce_equal_canonical_observations() {
         CollectionLimit::new(100, "unit_limit").unwrap(),
     )
     .unwrap()
-    .with_unit(second)
-    .unwrap()
     .with_unit(first)
+    .unwrap()
+    .with_unit(second)
     .unwrap()
     .with_measurements(metrics);
 
     assert_eq!(left, right);
+    assert_eq!(
+        left.semantic_order()
+            .iter()
+            .map(|reference| reference.sequence())
+            .collect::<Vec<_>>(),
+        vec![2, 1]
+    );
+    assert_eq!(
+        left.units()
+            .iter()
+            .map(|unit| unit.reference().sequence())
+            .collect::<Vec<_>>(),
+        vec![1, 2]
+    );
 }
 
 #[test]

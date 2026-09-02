@@ -62,7 +62,7 @@ fn verify() -> Result<(), String> {
     check_semantic_html_boundary(&root)?;
     println!("==> local state boundary");
     check_state_boundary(&root)?;
-    println!("==> full observation boundary");
+    println!("==> observation and diff boundary");
     check_observation_boundary(&root)?;
     println!("==> deterministic relevance boundary");
     check_relevance_boundary(&root)?;
@@ -404,7 +404,7 @@ fn check_observation_boundary(root: &Path) -> Result<(), String> {
             }
         }
     }
-    println!("full observation depends inward on state/core with no encoding or subprocess");
+    println!("observation and diffing depend inward on state/core with no encoding or subprocess");
     Ok(())
 }
 

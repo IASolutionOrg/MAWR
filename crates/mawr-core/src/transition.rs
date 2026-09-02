@@ -6,6 +6,7 @@ pub enum ResetReason {
     BaseEvicted,
     NavigationBoundary,
     AmbiguousIdentity,
+    DiffTooLarge,
     ExplicitRequest,
 }
 

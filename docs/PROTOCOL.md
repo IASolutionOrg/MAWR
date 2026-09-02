@@ -2,7 +2,7 @@
 
 This document owns the conceptual agent-facing observation and action contract. Exact wire schemas and names remain to be versioned during implementation.
 
-No public agent protocol, MCP tools, or wire implementation exists yet. M5 implements the internal typed complete-observation producer described in [OBSERVATIONS.md](OBSERVATIONS.md), and M6 implements its deterministic [relevance and budget selector](RELEVANCE.md); the concepts below establish future transport ownership and invariants without freezing exact schemas prematurely.
+No public agent protocol, MCP tools, or wire implementation exists yet. M5 implements the internal typed complete-observation producer described in [OBSERVATIONS.md](OBSERVATIONS.md), M6 implements its deterministic [relevance and budget selector](RELEVANCE.md), and M9 implements reconstructable [semantic diffs](DIFFS.md); the concepts below establish future transport ownership and invariants without freezing exact schemas prematurely.
 
 ## Small tool surface
 
@@ -51,7 +51,7 @@ The internal M8 Rust boundary groups 1–64 deterministic operations to reduce c
 
 ## Results and state transitions
 
-Results distinguish successful execution, unsupported capability, invalid input, missing or stale reference, authorization denial, resource limit, navigation or engine failure, and partial batch completion. Success identifies the resulting state and meaningful changes. Model prose is never the authoritative success check for benchmark tasks.
+Results distinguish successful execution, unsupported capability, invalid input, missing or stale reference, authorization denial, resource limit, navigation or engine failure, and partial batch completion. The internal M9 boundary can identify the resulting state with bounded meaningful changes or an explicit full reset; M10 still owns its external representation. Model prose is never the authoritative success check for benchmark tasks.
 
 ## Versioning
 

@@ -3,8 +3,8 @@ use std::time::Instant;
 
 use mawr_core::{
     ElementRef, Measurement, MeasurementKind, MeasurementSource, NonEmptyText, Observation,
-    ObservationRequest, OmissionCategory, OmissionSummary, OperationFailure, Property,
-    RelationshipKind, SemanticRole, SemanticUnit, SemanticValue,
+    ObservationBasis, ObservationRequest, OmissionCategory, OmissionSummary, OperationFailure,
+    Property, RelationshipKind, SemanticRole, SemanticUnit, SemanticValue,
 };
 
 use crate::projection::{envelope_projection, unit_projection};
@@ -280,6 +280,9 @@ impl RelevanceSelector {
             ));
         }
         if observation.omissions().iter().any(|(_, count)| count > 0) {
+            return Err(invariant_failure("selection_requires_full_observation"));
+        }
+        if matches!(observation.basis(), ObservationBasis::Incremental { .. }) {
             return Err(invariant_failure("selection_requires_full_observation"));
         }
         if observation

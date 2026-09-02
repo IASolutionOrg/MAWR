@@ -39,8 +39,8 @@ pub use measurement::{
     Measurement, MeasurementKind, MeasurementSet, MeasurementSource, UnavailableReason,
 };
 pub use observation::{
-    FullObservationReason, Observation, ObservationBasis, ObservationChanges, ObservationRequest,
-    OmissionCategory, OmissionSummary,
+    FullObservationReason, MAX_SUMMARY_BYTES, Observation, ObservationBasis, ObservationChanges,
+    ObservationRequest, OmissionCategory, OmissionSummary, SemanticChanges,
 };
 pub use semantic::{
     ActionAffordances, ElementState, MAX_SEMANTIC_DESCRIPTION_BYTES, MAX_SEMANTIC_NAME_BYTES,

@@ -1,13 +1,13 @@
 use std::collections::BTreeSet;
 
 use crate::{
-    BoundedText, CapabilityReport, CollectionLimit, EngineIdentity, MeasurementSet, NonEmptyText,
-    ObservationTokenBudget, PageIdentity, ResetReason, SemanticUnit, SessionId, StateId,
-    ValidationError, ValidationIssue,
+    BoundedText, CapabilityReport, CollectionLimit, ElementRef, EngineIdentity, MeasurementSet,
+    NonEmptyText, ObservationTokenBudget, PageIdentity, ResetReason, SemanticUnit, SessionId,
+    StateId, ValidationError, ValidationIssue,
 };
 
 const MAX_GOAL_BYTES: usize = 4_096;
-const MAX_SUMMARY_BYTES: usize = 1_024;
+pub const MAX_SUMMARY_BYTES: usize = 1_024;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ObservationRequest {
@@ -85,16 +85,132 @@ pub enum ObservationBasis {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ObservationChanges {
     NotRequested,
     NotComputed {
         base: StateId,
     },
+    Computed(SemanticChanges),
     Reset {
         requested_base: StateId,
         reason: ResetReason,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SemanticChanges {
+    base: StateId,
+    target: StateId,
+    added: Vec<ElementRef>,
+    updated: Vec<ElementRef>,
+    removed: Vec<ElementRef>,
+    summary_changed: bool,
+    order_changed: bool,
+}
+
+impl SemanticChanges {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        base: StateId,
+        target: StateId,
+        added: Vec<ElementRef>,
+        updated: Vec<ElementRef>,
+        removed: Vec<ElementRef>,
+        summary_changed: bool,
+        order_changed: bool,
+        change_limit: CollectionLimit,
+    ) -> Result<Self, ValidationError> {
+        ensure_session("semantic_changes_target", base.session(), target)?;
+        if base.sequence() > target.sequence() {
+            return Err(ValidationError::new(
+                "semantic_changes_state",
+                ValidationIssue::InvalidTransition,
+            ));
+        }
+        let added = validated_references("semantic_changes_added", target, added)?;
+        let updated = validated_references("semantic_changes_updated", target, updated)?;
+        let removed = validated_references("semantic_changes_removed", target, removed)?;
+        let entry_count = added
+            .len()
+            .saturating_add(updated.len())
+            .saturating_add(removed.len());
+        if entry_count > change_limit.get() as usize {
+            return Err(ValidationError::new(
+                "semantic_changes",
+                ValidationIssue::OutOfRange {
+                    min: 0,
+                    max: change_limit.get(),
+                    actual: entry_count as u64,
+                },
+            ));
+        }
+        let mut all = BTreeSet::new();
+        if added
+            .iter()
+            .chain(&updated)
+            .chain(&removed)
+            .any(|reference| !all.insert(*reference))
+        {
+            return Err(ValidationError::new(
+                "semantic_changes_reference",
+                ValidationIssue::Duplicate,
+            ));
+        }
+        Ok(Self {
+            base,
+            target,
+            added,
+            updated,
+            removed,
+            summary_changed,
+            order_changed,
+        })
+    }
+
+    #[must_use]
+    pub const fn base(&self) -> StateId {
+        self.base
+    }
+
+    #[must_use]
+    pub const fn target(&self) -> StateId {
+        self.target
+    }
+
+    #[must_use]
+    pub fn added(&self) -> &[ElementRef] {
+        &self.added
+    }
+
+    #[must_use]
+    pub fn updated(&self) -> &[ElementRef] {
+        &self.updated
+    }
+
+    #[must_use]
+    pub fn removed(&self) -> &[ElementRef] {
+        &self.removed
+    }
+
+    #[must_use]
+    pub const fn summary_changed(&self) -> bool {
+        self.summary_changed
+    }
+
+    #[must_use]
+    pub const fn order_changed(&self) -> bool {
+        self.order_changed
+    }
+
+    pub fn changed_references(&self) -> impl Iterator<Item = ElementRef> + '_ {
+        self.added.iter().chain(&self.updated).copied()
+    }
+
+    #[must_use]
+    pub const fn unit_change_count(&self) -> usize {
+        self.added.len() + self.updated.len() + self.removed.len()
+    }
 }
 
 impl ObservationBasis {
@@ -203,6 +319,7 @@ pub struct Observation {
     unit_limit: CollectionLimit,
     summary: Option<BoundedText<MAX_SUMMARY_BYTES>>,
     units: Vec<SemanticUnit>,
+    semantic_order: Vec<ElementRef>,
     omissions: OmissionSummary,
     measurements: MeasurementSet,
 }
@@ -255,6 +372,7 @@ impl Observation {
             unit_limit,
             summary: None,
             units: Vec::new(),
+            semantic_order: Vec::new(),
             omissions: OmissionSummary::new(),
             measurements: MeasurementSet::default(),
         })
@@ -297,6 +415,10 @@ impl Observation {
                 },
             ));
         }
+        let appended_order = units
+            .iter()
+            .map(SemanticUnit::reference)
+            .collect::<Vec<_>>();
         self.units.extend(units);
         self.units.sort_unstable_by_key(SemanticUnit::reference);
         if self
@@ -309,6 +431,87 @@ impl Observation {
                 ValidationIssue::Duplicate,
             ));
         }
+        self.semantic_order.extend(appended_order);
+        Ok(self)
+    }
+
+    pub fn with_computed_changes(
+        mut self,
+        changes: SemanticChanges,
+        units: Vec<SemanticUnit>,
+        summary: Option<String>,
+        target_order: Option<Vec<ElementRef>>,
+    ) -> Result<Self, ValidationError> {
+        let ObservationBasis::Incremental { base } = self.basis else {
+            return Err(ValidationError::new(
+                "observation_changes",
+                ValidationIssue::InvalidTransition,
+            ));
+        };
+        if changes.base() != base || changes.target() != self.state {
+            return Err(ValidationError::new(
+                "observation_changes_state",
+                ValidationIssue::InvalidTransition,
+            ));
+        }
+        validate_units(self.state, self.unit_limit, &units)?;
+        let unit_references = units
+            .iter()
+            .map(SemanticUnit::reference)
+            .collect::<BTreeSet<_>>();
+        let changed_references = changes.changed_references().collect::<BTreeSet<_>>();
+        if unit_references != changed_references {
+            return Err(ValidationError::new(
+                "observation_changed_units",
+                ValidationIssue::InvalidFormat,
+            ));
+        }
+        if !changes.summary_changed() && summary.is_some() {
+            return Err(ValidationError::new(
+                "observation_changed_summary",
+                ValidationIssue::InvalidFormat,
+            ));
+        }
+        let summary = if changes.summary_changed() {
+            summary
+                .map(|summary| BoundedText::new(summary, "observation_summary"))
+                .transpose()?
+        } else {
+            None
+        };
+        let semantic_order = match (changes.order_changed(), target_order) {
+            (false, None) => Vec::new(),
+            (true, Some(order)) => {
+                validate_order(self.state, self.unit_limit, &order)?;
+                let order_set = order.iter().copied().collect::<BTreeSet<_>>();
+                if changes
+                    .changed_references()
+                    .any(|reference| !order_set.contains(&reference))
+                    || changes
+                        .removed()
+                        .iter()
+                        .any(|reference| order_set.contains(reference))
+                {
+                    return Err(ValidationError::new(
+                        "observation_changed_order",
+                        ValidationIssue::InvalidFormat,
+                    ));
+                }
+                order
+            }
+            _ => {
+                return Err(ValidationError::new(
+                    "observation_changed_order",
+                    ValidationIssue::InvalidFormat,
+                ));
+            }
+        };
+        let mut units = units;
+        units.sort_unstable_by_key(SemanticUnit::reference);
+        self.changes = ObservationChanges::Computed(changes);
+        self.summary = summary;
+        self.units = units;
+        self.semantic_order = semantic_order;
         Ok(self)
     }
 
@@ -317,6 +520,12 @@ impl Observation {
         references: impl IntoIterator<Item = crate::ElementRef>,
         omissions: OmissionSummary,
     ) -> Result<Self, ValidationError> {
+        if matches!(self.changes, ObservationChanges::Computed(_)) {
+            return Err(ValidationError::new(
+                "selected_incremental_observation",
+                ValidationIssue::InvalidTransition,
+            ));
+        }
         let references = references.into_iter().collect::<Vec<_>>();
         let selected = references.iter().copied().collect::<BTreeSet<_>>();
         if selected.len() != references.len() {
@@ -349,6 +558,8 @@ impl Observation {
         }
         self.units
             .retain(|unit| selected.contains(&unit.reference()));
+        self.semantic_order
+            .retain(|reference| selected.contains(reference));
         self.omissions = omissions;
         Ok(self)
     }
@@ -391,8 +602,8 @@ impl Observation {
     }
 
     #[must_use]
-    pub const fn changes(&self) -> ObservationChanges {
-        self.changes
+    pub const fn changes(&self) -> &ObservationChanges {
+        &self.changes
     }
 
     #[must_use]
@@ -411,6 +622,11 @@ impl Observation {
     }
 
     #[must_use]
+    pub fn semantic_order(&self) -> &[ElementRef] {
+        &self.semantic_order
+    }
+
+    #[must_use]
     pub const fn omissions(&self) -> &OmissionSummary {
         &self.omissions
     }
@@ -419,6 +635,70 @@ impl Observation {
     pub const fn measurements(&self) -> &MeasurementSet {
         &self.measurements
     }
+}
+
+fn validated_references(
+    field: &'static str,
+    state: StateId,
+    mut references: Vec<ElementRef>,
+) -> Result<Vec<ElementRef>, ValidationError> {
+    if let Some(reference) = references
+        .iter()
+        .find(|reference| reference.session() != state.session())
+    {
+        return Err(ValidationError::new(
+            field,
+            ValidationIssue::SessionMismatch {
+                expected: state.session().get(),
+                actual: reference.session().get(),
+            },
+        ));
+    }
+    references.sort_unstable();
+    if references.windows(2).any(|pair| pair[0] == pair[1]) {
+        return Err(ValidationError::new(field, ValidationIssue::Duplicate));
+    }
+    Ok(references)
+}
+
+fn validate_units(
+    state: StateId,
+    limit: CollectionLimit,
+    units: &[SemanticUnit],
+) -> Result<(), ValidationError> {
+    if units.len() > limit.get() as usize {
+        return Err(ValidationError::new(
+            "semantic_units",
+            ValidationIssue::OutOfRange {
+                min: 0,
+                max: limit.get(),
+                actual: units.len() as u64,
+            },
+        ));
+    }
+    let references = units
+        .iter()
+        .map(SemanticUnit::reference)
+        .collect::<Vec<_>>();
+    validated_references("semantic_unit", state, references).map(|_| ())
+}
+
+fn validate_order(
+    state: StateId,
+    limit: CollectionLimit,
+    order: &[ElementRef],
+) -> Result<(), ValidationError> {
+    if order.len() > limit.get() as usize {
+        return Err(ValidationError::new(
+            "semantic_order",
+            ValidationIssue::OutOfRange {
+                min: 0,
+                max: limit.get(),
+                actual: order.len() as u64,
+            },
+        ));
+    }
+    validated_references("semantic_order", state, order.to_vec()).map(|_| ())
 }
 
 fn ensure_session(
@@ -445,7 +725,7 @@ mod tests {
         SemanticRole, SemanticUnit, SessionId, StateId, UnsupportedReason,
     };
 
-    use super::{FullObservationReason, Observation, ObservationBasis};
+    use super::{FullObservationReason, Observation, ObservationBasis, SemanticChanges};
 
     fn observation(session: SessionId) -> Observation {
         let engine = EngineIdentity::new("native-static", "0", EngineKind::NativeStatic).unwrap();
@@ -577,6 +857,73 @@ mod tests {
                     super::OmissionSummary::new(),
                 )
                 .is_err()
+        );
+    }
+
+    #[test]
+    fn semantic_changes_are_bounded_disjoint_and_session_scoped() {
+        let session = SessionId::new(3).unwrap();
+        let base = StateId::new(session, 1).unwrap();
+        let target = StateId::new(session, 2).unwrap();
+        let added = ElementRef::new(session, 1).unwrap();
+        let updated = ElementRef::new(session, 2).unwrap();
+        let removed = ElementRef::new(session, 3).unwrap();
+        let changes = SemanticChanges::new(
+            base,
+            target,
+            vec![added],
+            vec![updated],
+            vec![removed],
+            true,
+            true,
+            crate::CollectionLimit::new(3, "change_limit").unwrap(),
+        )
+        .unwrap();
+        assert_eq!(changes.unit_change_count(), 3);
+        assert_eq!(
+            changes.changed_references().collect::<Vec<_>>(),
+            vec![added, updated]
+        );
+
+        assert!(
+            SemanticChanges::new(
+                base,
+                target,
+                vec![added],
+                vec![added],
+                Vec::new(),
+                false,
+                false,
+                crate::CollectionLimit::new(3, "change_limit").unwrap(),
+            )
+            .is_err()
+        );
+        assert!(
+            SemanticChanges::new(
+                base,
+                target,
+                vec![added, updated],
+                vec![removed],
+                Vec::new(),
+                false,
+                false,
+                crate::CollectionLimit::new(2, "change_limit").unwrap(),
+            )
+            .is_err()
+        );
+        let foreign = SessionId::new(4).unwrap();
+        assert!(
+            SemanticChanges::new(
+                base,
+                target,
+                vec![ElementRef::new(foreign, 1).unwrap()],
+                Vec::new(),
+                Vec::new(),
+                false,
+                false,
+                crate::CollectionLimit::new(3, "change_limit").unwrap(),
+            )
+            .is_err()
         );
     }
 }

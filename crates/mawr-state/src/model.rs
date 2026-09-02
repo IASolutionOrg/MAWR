@@ -70,6 +70,7 @@ impl StoredSemanticUnit {
 pub struct StoredState {
     pub(crate) id: StateId,
     pub(crate) page: PageIdentity,
+    pub(crate) reset: Option<ResetReason>,
     pub(crate) document: SemanticDocument,
     pub(crate) units: Vec<StoredSemanticUnit>,
     pub(crate) reference_index: BTreeMap<ElementRef, usize>,
@@ -84,6 +85,11 @@ impl StoredState {
     #[must_use]
     pub const fn page(&self) -> &PageIdentity {
         &self.page
+    }
+
+    #[must_use]
+    pub const fn reset(&self) -> Option<ResetReason> {
+        self.reset
     }
 
     #[must_use]
@@ -110,6 +116,7 @@ impl std::fmt::Debug for StoredState {
             .debug_struct("StoredState")
             .field("id", &self.id)
             .field("page", &self.page)
+            .field("reset", &self.reset)
             .field("units", &self.units)
             .finish_non_exhaustive()
     }

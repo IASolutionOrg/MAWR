@@ -586,3 +586,32 @@ fn changed_reference_validation_and_configurable_weights_are_observable() {
             .is_err()
     );
 }
+
+#[test]
+fn incremental_observations_are_rejected_before_relevance_selection() {
+    let session = SessionId::new(39).unwrap();
+    let engine = engine();
+    let incremental = Observation::new(
+        StateId::new(session, 2).unwrap(),
+        PageIdentity::new(
+            PageId::new(session, 1).unwrap(),
+            AbsoluteUrl::new("https://example.test/fixture").unwrap(),
+        ),
+        engine.clone(),
+        CapabilityReport::unsupported_all(engine, UnsupportedReason::NotImplemented),
+        ObservationBasis::Incremental {
+            base: StateId::new(session, 1).unwrap(),
+        },
+        CollectionLimit::new(10_000, "unit_limit").unwrap(),
+    )
+    .unwrap();
+
+    let result = RelevanceSelector::default().select(
+        &incremental,
+        &ObservationRequest::new(session),
+        &FixedFragmentTokenizer::new(1),
+        &SelectionContext::default(),
+    );
+
+    assert!(result.is_err());
+}

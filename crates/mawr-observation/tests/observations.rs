@@ -70,7 +70,7 @@ fn full_observation_preserves_roles_properties_relationships_and_affordances() {
         observation.basis(),
         ObservationBasis::Full(mawr_core::FullObservationReason::Initial)
     );
-    assert_eq!(observation.changes(), ObservationChanges::NotRequested);
+    assert_eq!(observation.changes(), &ObservationChanges::NotRequested);
     assert_eq!(observation.capabilities(), &capabilities(&engine()));
     assert!(
         OmissionCategory::ALL
@@ -159,13 +159,20 @@ fn retained_evicted_future_and_navigation_bases_are_classified_explicitly() {
         incremental.observation().basis(),
         ObservationBasis::Incremental { base: first }
     );
+    let ObservationChanges::Computed(changes) = incremental.observation().changes() else {
+        panic!("retained same-page base must produce computed changes");
+    };
+    assert_eq!(changes.base(), first);
+    assert_eq!(changes.target(), retained.current().unwrap().id());
+    assert_eq!(changes.unit_change_count(), 0);
+    assert!(incremental.observation().units().is_empty());
     assert_eq!(
-        incremental.observation().changes(),
-        ObservationChanges::NotComputed { base: first }
-    );
-    assert_eq!(
-        incremental.observation().units().len(),
-        retained.current().unwrap().units().len()
+        incremental
+            .diagnostics()
+            .diff()
+            .unwrap()
+            .emitted_unit_count(),
+        0
     );
 
     let one_state = StateStoreConfig::default().with_retained_states(1).unwrap();
@@ -211,7 +218,7 @@ fn retained_evicted_future_and_navigation_bases_are_classified_explicitly() {
         .unwrap();
     assert_eq!(
         unavailable.observation().changes(),
-        ObservationChanges::Reset {
+        &ObservationChanges::Reset {
             requested_base: future,
             reason: ResetReason::BaseUnavailable,
         }
@@ -245,6 +252,37 @@ fn retained_evicted_future_and_navigation_bases_are_classified_explicitly() {
         ObservationBasis::Reset {
             requested_base: old_page,
             reason: ResetReason::NavigationBoundary,
+        }
+    );
+
+    let mut ambiguous = store(session, StateStoreConfig::default());
+    let ambiguous_base = ambiguous
+        .update(
+            document(session, "https://example.test/state", html),
+            TransitionCause::Refresh,
+        )
+        .unwrap()
+        .transition()
+        .to();
+    ambiguous
+        .update(
+            document(session, "https://example.test/state", html),
+            TransitionCause::Reset(ResetReason::AmbiguousIdentity),
+        )
+        .unwrap();
+    let ambiguous_reset = builder()
+        .build(
+            &ambiguous,
+            &ObservationRequest::new(session)
+                .since_state(ambiguous_base)
+                .unwrap(),
+        )
+        .unwrap();
+    assert_eq!(
+        ambiguous_reset.observation().basis(),
+        ObservationBasis::Reset {
+            requested_base: ambiguous_base,
+            reason: ResetReason::AmbiguousIdentity,
         }
     );
 }

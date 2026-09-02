@@ -1,6 +1,6 @@
 # Architecture
 
-This document owns MAWR's durable system boundaries. The dependency-free M1 domain types, M2 native HTTP(S) transport, M3 static HTML semantic extractor, M4 bounded local state store, M5 complete observation builder, M6 deterministic relevance/budget selector, M7 authorized static action executor, and M8 bounded batch executor exist; semantic diffs, encoding, and every later layer remain contracts for later MVP implementation rather than claims about shipped behavior. See [CORE-CONTRACTS.md](CORE-CONTRACTS.md), [NATIVE-STATIC-ENGINE.md](NATIVE-STATIC-ENGINE.md), [SEMANTIC-HTML.md](SEMANTIC-HTML.md), [STATE-STORE.md](STATE-STORE.md), [OBSERVATIONS.md](OBSERVATIONS.md), [RELEVANCE.md](RELEVANCE.md), [ACTIONS.md](ACTIONS.md), and [BATCHES.md](BATCHES.md) for the exact implemented boundaries.
+This document owns MAWR's durable system boundaries. The dependency-free M1 domain types, M2 native HTTP(S) transport, M3 static HTML semantic extractor, M4 bounded local state store, M5 complete observation builder, M6 deterministic relevance/budget selector, M7 authorized static action executor, M8 bounded batch executor, and M9 semantic differ exist; encoding and every later layer remain contracts for later MVP implementation rather than claims about shipped behavior. See [CORE-CONTRACTS.md](CORE-CONTRACTS.md), [NATIVE-STATIC-ENGINE.md](NATIVE-STATIC-ENGINE.md), [SEMANTIC-HTML.md](SEMANTIC-HTML.md), [STATE-STORE.md](STATE-STORE.md), [OBSERVATIONS.md](OBSERVATIONS.md), [DIFFS.md](DIFFS.md), [RELEVANCE.md](RELEVANCE.md), [ACTIONS.md](ACTIONS.md), and [BATCHES.md](BATCHES.md) for the exact implemented boundaries.
 
 ## Core flow
 
@@ -50,9 +50,9 @@ The implemented static semantic model represents page, region, heading, text, li
 
 M3 source-node IDs are deterministic only for one parsed document and are not action references. M4 maps them to compact `ElementRef` values that survive a defined conservative set of transitions when semantic identity is unique. References remain scoped to one session, are never recycled in that session, and do not become CSS selectors or globally durable identifiers.
 
-### Local state and future diffs
+### Local state and semantic diffs
 
-`mawr-state` retains full semantic documents locally behind explicit state and page identities. Retention is bounded by both state count and total semantic units. Current-state reference lookup distinguishes stale states, missing references, and session mismatches; evicted history is never silently addressed. M5 exposes a typed change placeholder and reset basis, while semantic diff payloads remain an M9 concern. [STATE-STORE.md](STATE-STORE.md) owns the implemented lifecycle.
+`mawr-state` retains full semantic documents locally behind explicit state and page identities. Retention is bounded by both state count and total semantic units. Current-state reference lookup distinguishes stale states, missing references, and session mismatches; evicted history is never silently addressed. M9 compares retained same-page states by stable reference, emits additions, full replacement units for updates, removals, and optional summary/order replacement, and otherwise returns an explicit full reset. [STATE-STORE.md](STATE-STORE.md) owns lifecycle; [DIFFS.md](DIFFS.md) owns reconstruction.
 
 ### Relevance and budgeting
 
@@ -62,7 +62,7 @@ Budgeting selects complete semantic units and their structural/label dependencie
 
 ### Observation and action boundary
 
-The implemented M5 full observation contains state/page/engine identity, a bounded page summary, every semantic unit, capabilities, zero-omission metadata, construction measurements, and an explicit no-change/incremental-placeholder/reset basis. M6 derives a selected observation without mutating that reference input; semantic change payloads remain later work. M7 executes one typed navigate, follow, fill, select, check, uncheck, submit, or supported press after expected-state, reference, semantic, capability, validity, and caller-authorization preflight. M8 preflights bounded ordered batches on cloned state, preserves per-item authorization, and exposes exact partial runtime results; unknown post-navigation semantics terminate reference-bearing preflight. [OBSERVATIONS.md](OBSERVATIONS.md) owns the full builder, [RELEVANCE.md](RELEVANCE.md) owns selection, [ACTIONS.md](ACTIONS.md) owns single-action execution, [BATCHES.md](BATCHES.md) owns batch execution, and [PROTOCOL.md](PROTOCOL.md) owns the future external agent contract.
+The observation boundary contains state/page/engine identity, bounded summary, capabilities, zero-omission metadata, and construction measurements. Full/reset output contains every semantic unit; incremental output contains only added and updated units plus typed removals and changed summary/order payloads. M6 derives selected observations only from complete/reset input. M7 executes one authorized typed action, and M8 preflights bounded ordered batches with exact partial results. [OBSERVATIONS.md](OBSERVATIONS.md) owns construction, [DIFFS.md](DIFFS.md) owns deltas, [RELEVANCE.md](RELEVANCE.md) owns selection, [ACTIONS.md](ACTIONS.md) owns single-action execution, [BATCHES.md](BATCHES.md) owns batch execution, and [PROTOCOL.md](PROTOCOL.md) owns the future external agent contract.
 
 ### Encoding boundary
 
