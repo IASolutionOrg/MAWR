@@ -19,7 +19,7 @@ Author HTML IDs and per-parse `SourceNodeId` values remain local identity/proven
 
 ## Request and basis behavior
 
-`ObservationRequest` continues to validate bounded non-empty goals, bounded token budgets, session ownership, and `since_state`. Full mode deliberately does not use the goal or token budget for selection: diagnostics mark each supplied input as deferred to M6, and every unit remains present.
+`ObservationRequest` continues to validate bounded non-empty goals, bounded token budgets, session ownership, and `since_state`. Full mode deliberately does not use the goal or token budget for selection: its diagnostics mark each supplied input as deferred, and every unit remains present. The implemented [M6 selector](RELEVANCE.md) consumes that same request alongside the immutable full observation.
 
 The builder classifies state history without pretending that M9 semantic diffs exist:
 

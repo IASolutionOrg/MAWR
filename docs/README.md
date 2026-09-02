@@ -10,6 +10,7 @@ The public documentation is complete without private maintainer files. Each dura
 - Implemented static HTML semantics: [SEMANTIC-HTML.md](SEMANTIC-HTML.md)
 - Implemented local state and stable references: [STATE-STORE.md](STATE-STORE.md)
 - Implemented complete observations: [OBSERVATIONS.md](OBSERVATIONS.md)
+- Implemented relevance and budgeting: [RELEVANCE.md](RELEVANCE.md)
 - Engine contract: [ENGINE-CONTRACT.md](ENGINE-CONTRACT.md)
 - Agent protocol: [PROTOCOL.md](PROTOCOL.md)
 - Encoding architecture: [ENCODING.md](ENCODING.md)

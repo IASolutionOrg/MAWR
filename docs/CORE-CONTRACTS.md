@@ -17,7 +17,7 @@ This document records the implemented M1 boundary in `mawr-core`. It complements
 - structured operational failure classes and retry dispositions;
 - exact, estimated, or unavailable measurement values.
 
-Constructors validate cross-field invariants. References and semantic parents cannot cross sessions, capability reports belong to one engine, observation units are deterministically bulk-ordered and bounded, and sensitive action values, semantic content, and URL details have redacted debug output. Ambiguous absence is represented explicitly where it affects meaning, such as unavailable measurements, unknown semantic properties, unsupported capabilities, deferred changes, and observation resets.
+Constructors validate cross-field invariants. References and semantic parents cannot cross sessions, capability reports belong to one engine, observation units are deterministically bulk-ordered and bounded, and selected-unit subsets must contain unique references already owned by the source observation. Sensitive action values, semantic content, and URL details have redacted debug output. Ambiguous absence is represented explicitly where it affects meaning, such as unavailable measurements, unknown semantic properties, unsupported capabilities, deferred changes, and observation resets.
 
 ## Dependency and encoding boundary
 
@@ -27,6 +27,6 @@ Serialization is intentionally absent. Compact JSON remains a future boundary ow
 
 ## Deliberate limitations
 
-`mawr-core` implements contracts, validation, and deterministic value behavior only. Other implemented private crates now navigate static HTTP, extract semantics, retain state, and construct complete observations. Core itself does not perform those operations, rank relevance, encode messages, execute actions, expose a CLI or MCP server, or claim runtime/platform/web compatibility.
+`mawr-core` implements contracts, validation, and deterministic value behavior only. Other implemented private crates now navigate static HTTP, extract semantics, retain state, construct complete observations, and select observation subsets. Core itself does not perform those operations, rank relevance, encode messages, execute actions, expose a CLI or MCP server, or claim runtime/platform/web compatibility.
 
-The current URL type verifies only bounded absolute structure. Full standards-compliant URL parsing, resolution, destination policy, HTTP behavior, and download handling belong to the native static engine. M5 constructs complete observations, while relevance, batching, semantic diff generation, and public encoding remain later milestones.
+The current URL type verifies only bounded absolute structure. Full standards-compliant URL parsing, resolution, destination policy, HTTP behavior, and download handling belong to the native static engine. M5 constructs complete observations and M6 selects complete units under an explicit diagnostic token budget; batching, semantic diff generation, and public encoding remain later milestones.

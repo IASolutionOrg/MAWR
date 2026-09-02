@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use crate::{
     BoundedText, CapabilityReport, CollectionLimit, EngineIdentity, MeasurementSet, NonEmptyText,
     ObservationTokenBudget, PageIdentity, ResetReason, SemanticUnit, SessionId, StateId,
@@ -310,6 +312,47 @@ impl Observation {
         Ok(self)
     }
 
+    pub fn with_selected_units(
+        mut self,
+        references: impl IntoIterator<Item = crate::ElementRef>,
+        omissions: OmissionSummary,
+    ) -> Result<Self, ValidationError> {
+        let references = references.into_iter().collect::<Vec<_>>();
+        let selected = references.iter().copied().collect::<BTreeSet<_>>();
+        if selected.len() != references.len() {
+            return Err(ValidationError::new(
+                "selected_semantic_unit",
+                ValidationIssue::Duplicate,
+            ));
+        }
+        if let Some(reference) = selected
+            .iter()
+            .find(|reference| reference.session() != self.state.session())
+        {
+            return Err(ValidationError::new(
+                "selected_semantic_unit",
+                ValidationIssue::SessionMismatch {
+                    expected: self.state.session().get(),
+                    actual: reference.session().get(),
+                },
+            ));
+        }
+        if selected.iter().any(|reference| {
+            self.units
+                .binary_search_by_key(reference, SemanticUnit::reference)
+                .is_err()
+        }) {
+            return Err(ValidationError::new(
+                "selected_semantic_unit",
+                ValidationIssue::InvalidFormat,
+            ));
+        }
+        self.units
+            .retain(|unit| selected.contains(&unit.reference()));
+        self.omissions = omissions;
+        Ok(self)
+    }
+
     #[must_use]
     pub fn with_omissions(mut self, omissions: OmissionSummary) -> Self {
         self.omissions = omissions;
@@ -488,5 +531,52 @@ mod tests {
         );
 
         assert!(subject.with_unit(first).unwrap().with_unit(second).is_err());
+    }
+
+    #[test]
+    fn selected_units_must_be_unique_owned_members() {
+        let session = SessionId::new(1).unwrap();
+        let first = ElementRef::new(session, 1).unwrap();
+        let second = ElementRef::new(session, 2).unwrap();
+        let subject = observation(session)
+            .with_units([
+                SemanticUnit::new(first, SemanticRole::Page, Provenance::UntrustedWebContent),
+                SemanticUnit::new(
+                    second,
+                    SemanticRole::Button,
+                    Provenance::UntrustedWebContent,
+                ),
+            ])
+            .unwrap();
+        let selected = subject
+            .clone()
+            .with_selected_units([second], super::OmissionSummary::new())
+            .unwrap();
+        assert_eq!(selected.units().len(), 1);
+        assert_eq!(selected.units()[0].reference(), second);
+        assert!(
+            subject
+                .clone()
+                .with_selected_units([first, first], super::OmissionSummary::new())
+                .is_err()
+        );
+        assert!(
+            subject
+                .clone()
+                .with_selected_units(
+                    [ElementRef::new(session, 99).unwrap()],
+                    super::OmissionSummary::new(),
+                )
+                .is_err()
+        );
+        let foreign = SessionId::new(2).unwrap();
+        assert!(
+            subject
+                .with_selected_units(
+                    [ElementRef::new(foreign, 1).unwrap()],
+                    super::OmissionSummary::new(),
+                )
+                .is_err()
+        );
     }
 }

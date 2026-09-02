@@ -1,0 +1,19 @@
+[package]
+name = "mawr-relevance"
+version = "0.0.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+mawr-core = { path = "../mawr-core" }
+
+[dev-dependencies]
+mawr-observation = { path = "../mawr-observation" }
+mawr-semantic-html = { path = "../mawr-semantic-html" }
+mawr-state = { path = "../mawr-state" }
+
+[lints]
+workspace = true

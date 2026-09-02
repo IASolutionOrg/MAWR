@@ -1,6 +1,6 @@
 # Architecture
 
-This document owns MAWR's durable system boundaries. The dependency-free M1 domain types, M2 native HTTP(S) transport, M3 static HTML semantic extractor, M4 bounded local state store, and M5 complete observation builder exist; relevance, action, encoding, and every later layer remain contracts for later MVP implementation rather than claims about shipped behavior. See [CORE-CONTRACTS.md](CORE-CONTRACTS.md), [NATIVE-STATIC-ENGINE.md](NATIVE-STATIC-ENGINE.md), [SEMANTIC-HTML.md](SEMANTIC-HTML.md), [STATE-STORE.md](STATE-STORE.md), and [OBSERVATIONS.md](OBSERVATIONS.md) for the exact implemented boundaries.
+This document owns MAWR's durable system boundaries. The dependency-free M1 domain types, M2 native HTTP(S) transport, M3 static HTML semantic extractor, M4 bounded local state store, M5 complete observation builder, and M6 deterministic relevance/budget selector exist; actions, semantic diffs, encoding, and every later layer remain contracts for later MVP implementation rather than claims about shipped behavior. See [CORE-CONTRACTS.md](CORE-CONTRACTS.md), [NATIVE-STATIC-ENGINE.md](NATIVE-STATIC-ENGINE.md), [SEMANTIC-HTML.md](SEMANTIC-HTML.md), [STATE-STORE.md](STATE-STORE.md), [OBSERVATIONS.md](OBSERVATIONS.md), and [RELEVANCE.md](RELEVANCE.md) for the exact implemented boundaries.
 
 ## Core flow
 
@@ -56,13 +56,13 @@ M3 source-node IDs are deterministic only for one parsed document and are not ac
 
 ### Relevance and budgeting
 
-Ranking is deterministic and local for fixed inputs. Candidate signals include goal, accessible name, label and text overlap; heading, form, and semantic proximity; interactive, changed-state, error, and alert bonuses; and boilerplate or repeated-navigation penalties.
+The implemented M6 ranker is deterministic and local for fixed inputs. Its versioned configurable weights combine goal overlap in names, descriptions, and values; structural and interactive roles; caller-supplied changed-unit hints; alert and invalid-state priority; dependency context; and repeated-text/navigation penalties. Stable references break score ties.
 
-Budgeting selects complete semantic units before encoding. It records what was omitted and whether local token measurements are exact for the selected tokenizer or estimated. Ranking never invokes a second model merely to filter a page.
+Budgeting selects complete semantic units and their structural/label dependencies before encoding. The page, alerts, invalid controls, and their dependencies are essential: they may explicitly overshoot a tiny budget rather than disappear. Every other omission is counted as budget or irrelevance. Tokenizer identity/version and exact-versus-estimated quality are retained; the built-in UTF-8 heuristic is always estimated. No model is invoked. [RELEVANCE.md](RELEVANCE.md) owns this boundary.
 
 ### Observation and action boundary
 
-The implemented M5 full observation contains state/page/engine identity, a bounded page summary, every semantic unit, capabilities, zero-omission metadata, construction measurements, and an explicit no-change/incremental-placeholder/reset basis. Selection and semantic change payloads remain later work. Actions are typed operations such as navigate, follow, fill, select, check, uncheck, submit, and press. Deterministic actions may be batched, with expected-state validation preventing stale execution. [OBSERVATIONS.md](OBSERVATIONS.md) owns the implemented builder and [PROTOCOL.md](PROTOCOL.md) owns the future agent contract.
+The implemented M5 full observation contains state/page/engine identity, a bounded page summary, every semantic unit, capabilities, zero-omission metadata, construction measurements, and an explicit no-change/incremental-placeholder/reset basis. M6 derives a selected observation without mutating that reference input; semantic change payloads remain later work. Actions are typed operations such as navigate, follow, fill, select, check, uncheck, submit, and press. Deterministic actions may be batched, with expected-state validation preventing stale execution. [OBSERVATIONS.md](OBSERVATIONS.md) owns the full builder, [RELEVANCE.md](RELEVANCE.md) owns selection, and [PROTOCOL.md](PROTOCOL.md) owns the future agent contract.
 
 ### Encoding boundary
 

@@ -27,7 +27,7 @@ The versioned encoding must preserve state IDs, stable references, semantic role
 
 ## Token measurement
 
-Observation payload tokens will be measured locally with an identified tokenizer when possible and otherwise marked estimated with the method recorded. These diagnostic tokens are distinct from total provider-reported input and output usage. Selection operates on complete units and never truncates encoded bytes.
+M6 measures a deterministic typed-data projection with an identified tokenizer interface and records exact or estimated quality; its built-in UTF-8 byte heuristic is always estimated. This additive fragment count is a selection diagnostic, not a claim about the future M10 wire payload. M10 must measure its encoded observation independently as a whole. Both local values remain distinct from total provider-reported input and output usage. Selection operates on complete units and never truncates encoded bytes.
 
 ## Future encodings
 

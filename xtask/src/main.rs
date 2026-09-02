@@ -64,6 +64,8 @@ fn verify() -> Result<(), String> {
     check_state_boundary(&root)?;
     println!("==> full observation boundary");
     check_observation_boundary(&root)?;
+    println!("==> deterministic relevance boundary");
+    check_relevance_boundary(&root)?;
     run_cargo(&root, "format check", &["fmt", "--all", "--check"])?;
     run_cargo(
         &root,
@@ -401,6 +403,72 @@ fn check_observation_boundary(root: &Path) -> Result<(), String> {
         }
     }
     println!("full observation depends inward on state/core with no encoding or subprocess");
+    Ok(())
+}
+
+fn check_relevance_boundary(root: &Path) -> Result<(), String> {
+    let arguments = [
+        "tree",
+        "--locked",
+        "--package",
+        "mawr-relevance",
+        "--depth",
+        "1",
+        "--edges",
+        "normal",
+        "--prefix",
+        "none",
+    ];
+    let output = Command::new("cargo")
+        .args(arguments)
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("could not inspect the relevance dependency graph: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "`cargo {}` failed: {}",
+            arguments.join(" "),
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    let graph = String::from_utf8(output.stdout)
+        .map_err(|_| "relevance dependency graph output was not UTF-8".to_owned())?;
+    let dependencies = graph
+        .lines()
+        .skip(1)
+        .map(|line| line.split_whitespace().next().unwrap_or_default())
+        .collect::<Vec<_>>();
+    if dependencies != ["mawr-core"] {
+        return Err(format!(
+            "mawr-relevance must depend directly only on mawr-core; graph was:\n{graph}"
+        ));
+    }
+
+    let source_root = root.join("crates").join("mawr-relevance").join("src");
+    let mut source_files = Vec::new();
+    collect_files_with_extension(&source_root, OsStr::new("rs"), &mut source_files)?;
+    for file in source_files {
+        let source = fs::read_to_string(&file)
+            .map_err(|error| format!("could not read {}: {error}", file.display()))?;
+        for prohibited in [
+            "std::process",
+            "tokio::process",
+            "Command::new",
+            "serde::",
+            "serde_json",
+            "reqwest",
+            "openai",
+            "anthropic",
+        ] {
+            if source.contains(prohibited) {
+                return Err(format!(
+                    "relevance source {} contains prohibited runtime/model/encoding API `{prohibited}`",
+                    file.display()
+                ));
+            }
+        }
+    }
+    println!("relevance depends only on typed core data with no model, encoding, or subprocess");
     Ok(())
 }
 

@@ -2,7 +2,7 @@
 
 This document owns the conceptual agent-facing observation and action contract. Exact wire schemas and names remain to be versioned during implementation.
 
-No public agent protocol, MCP tools, or wire implementation exists yet. M5 now implements the internal typed complete-observation producer described in [OBSERVATIONS.md](OBSERVATIONS.md); the concepts below establish future transport ownership and invariants without freezing exact schemas prematurely.
+No public agent protocol, MCP tools, or wire implementation exists yet. M5 implements the internal typed complete-observation producer described in [OBSERVATIONS.md](OBSERVATIONS.md), and M6 implements its deterministic [relevance and budget selector](RELEVANCE.md); the concepts below establish future transport ownership and invariants without freezing exact schemas prematurely.
 
 ## Small tool surface
 
