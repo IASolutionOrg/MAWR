@@ -18,7 +18,10 @@ mod text;
 mod transition;
 mod validation;
 
-pub use action::{Action, ActionKind, ActionRequest, PressCommand};
+pub use action::{
+    Action, ActionBatch, ActionKind, ActionRequest, BatchFailurePolicy, MAX_ACTIONS_PER_BATCH,
+    PressCommand,
+};
 pub use address::{AbsoluteUrl, MAX_URL_BYTES};
 pub use capability::{
     Capability, CapabilityConstraint, CapabilityConstraints, CapabilityReport, CapabilityStatus,

@@ -1,6 +1,7 @@
 use crate::{AbsoluteUrl, ElementRef, SensitiveText, StateId, ValidationError, ValidationIssue};
 
 const MAX_INPUT_VALUE_BYTES: usize = 16_384;
+pub const MAX_ACTIONS_PER_BATCH: usize = 64;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ActionKind {
@@ -140,6 +141,83 @@ pub struct ActionRequest {
     action: Action,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum BatchFailurePolicy {
+    StopOnFailure,
+    ContinueIndependent,
+}
+
+/// An ordered, bounded action batch scoped to one observed state.
+///
+/// The expected state is checked before whole-batch preflight. Individual
+/// actions receive the deterministic state produced by earlier local actions;
+/// reference-bearing actions after a network boundary are rejected because
+/// their resulting semantic state cannot be known before execution.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ActionBatch {
+    expected_state: StateId,
+    actions: Vec<Action>,
+    failure_policy: BatchFailurePolicy,
+}
+
+impl ActionBatch {
+    pub fn new(
+        expected_state: StateId,
+        actions: Vec<Action>,
+        failure_policy: BatchFailurePolicy,
+    ) -> Result<Self, ValidationError> {
+        if actions.is_empty() {
+            return Err(ValidationError::new(
+                "batch_actions",
+                ValidationIssue::Empty,
+            ));
+        }
+        if actions.len() > MAX_ACTIONS_PER_BATCH {
+            return Err(ValidationError::new(
+                "batch_actions",
+                ValidationIssue::OutOfRange {
+                    min: 1,
+                    max: MAX_ACTIONS_PER_BATCH as u64,
+                    actual: actions.len() as u64,
+                },
+            ));
+        }
+        for action in &actions {
+            for reference in action.referenced_elements() {
+                if reference.session() != expected_state.session() {
+                    return Err(ValidationError::new(
+                        "batch_action_reference",
+                        ValidationIssue::SessionMismatch {
+                            expected: expected_state.session().get(),
+                            actual: reference.session().get(),
+                        },
+                    ));
+                }
+            }
+        }
+        Ok(Self {
+            expected_state,
+            actions,
+            failure_policy,
+        })
+    }
+
+    #[must_use]
+    pub const fn expected_state(&self) -> StateId {
+        self.expected_state
+    }
+
+    #[must_use]
+    pub fn actions(&self) -> &[Action] {
+        &self.actions
+    }
+
+    #[must_use]
+    pub const fn failure_policy(&self) -> BatchFailurePolicy {
+        self.failure_policy
+    }
+}
+
 impl ActionRequest {
     pub fn new(expected_state: StateId, action: Action) -> Result<Self, ValidationError> {
         for reference in action.referenced_elements() {
@@ -191,7 +269,7 @@ fn ensure_session(
 mod tests {
     use crate::{ElementRef, SessionId, StateId};
 
-    use super::{Action, ActionRequest};
+    use super::{Action, ActionBatch, ActionRequest, BatchFailurePolicy, MAX_ACTIONS_PER_BATCH};
 
     #[test]
     fn request_rejects_cross_session_references() {
@@ -208,5 +286,39 @@ mod tests {
         let session = SessionId::new(1).unwrap();
         let action = Action::fill(ElementRef::new(session, 1).unwrap(), "secret-value").unwrap();
         assert!(!format!("{action:?}").contains("secret-value"));
+    }
+
+    #[test]
+    fn batches_are_nonempty_bounded_session_scoped_and_secret_safe() {
+        let session = SessionId::new(1).unwrap();
+        let foreign = SessionId::new(2).unwrap();
+        let state = StateId::new(session, 1).unwrap();
+        assert!(ActionBatch::new(state, Vec::new(), BatchFailurePolicy::StopOnFailure).is_err());
+        assert!(
+            ActionBatch::new(
+                state,
+                vec![
+                    Action::navigate(crate::AbsoluteUrl::new("https://example.test/").unwrap());
+                    MAX_ACTIONS_PER_BATCH + 1
+                ],
+                BatchFailurePolicy::StopOnFailure,
+            )
+            .is_err()
+        );
+        assert!(
+            ActionBatch::new(
+                state,
+                vec![Action::follow(ElementRef::new(foreign, 1).unwrap())],
+                BatchFailurePolicy::StopOnFailure,
+            )
+            .is_err()
+        );
+        let batch = ActionBatch::new(
+            state,
+            vec![Action::fill(ElementRef::new(session, 1).unwrap(), "batch-secret").unwrap()],
+            BatchFailurePolicy::ContinueIndependent,
+        )
+        .unwrap();
+        assert!(!format!("{batch:?}").contains("batch-secret"));
     }
 }

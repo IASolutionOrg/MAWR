@@ -214,24 +214,24 @@ impl ActionOutcome {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ActionExecutionFailure {
-    failure: OperationFailure,
+    failure: Box<OperationFailure>,
     side_effect: SideEffectStatus,
-    network: Option<NetworkEvidence>,
+    network: Option<Box<NetworkEvidence>>,
 }
 
 impl ActionExecutionFailure {
-    pub(crate) const fn new(
+    pub(crate) fn new(
         failure: OperationFailure,
         side_effect: SideEffectStatus,
         network: Option<NetworkEvidence>,
     ) -> Self {
         Self {
-            failure,
+            failure: Box::new(failure),
             side_effect,
-            network,
+            network: network.map(Box::new),
         }
     }
-    pub(crate) const fn preflight(failure: OperationFailure) -> Self {
+    pub(crate) fn preflight(failure: OperationFailure) -> Self {
         Self::new(failure, SideEffectStatus::NotStarted, None)
     }
     #[must_use]
@@ -243,7 +243,7 @@ impl ActionExecutionFailure {
         self.side_effect
     }
     #[must_use]
-    pub const fn network(&self) -> Option<&NetworkEvidence> {
-        self.network.as_ref()
+    pub fn network(&self) -> Option<&NetworkEvidence> {
+        self.network.as_deref()
     }
 }

@@ -2,13 +2,13 @@ use std::io;
 use std::sync::{Arc, Mutex};
 
 use mawr_actions::{
-    ActionAuthorizationContext, ActionAuthorizer, AuthorizationDecision, SideEffectStatus,
-    StaticActionExecutor,
+    ActionAuthorizationContext, ActionAuthorizer, AuthorizationDecision, BatchAuditPhase,
+    BatchSkipReason, SideEffectStatus, StaticActionExecutor,
 };
 use mawr_core::{
-    AbsoluteUrl, Action, ActionKind, ActionRequest, AuthorizationReason, Capability,
-    CapabilityStatus, ElementRef, FailureClass, OperationFailure, PressCommand, Property,
-    SemanticRole, SessionId, TransitionCause,
+    AbsoluteUrl, Action, ActionBatch, ActionKind, ActionRequest, AuthorizationReason,
+    BatchFailurePolicy, Capability, CapabilityStatus, ElementRef, FailureClass, OperationFailure,
+    PressCommand, Property, SemanticRole, SessionId, TransitionCause,
 };
 use mawr_native_static::{
     CancellationToken, DestinationPolicy, NativeStaticConfig, NativeStaticEngine, NavigationRequest,
@@ -209,6 +209,45 @@ fn allow(_: &ActionAuthorizationContext) -> AuthorizationDecision {
 
 fn deny(_: &ActionAuthorizationContext) -> AuthorizationDecision {
     AuthorizationDecision::Deny(AuthorizationReason::MutationNotGranted)
+}
+
+#[derive(Clone)]
+struct RecordingAuthorizer {
+    contexts: Arc<Mutex<Vec<ActionAuthorizationContext>>>,
+    deny_at: Option<usize>,
+}
+
+impl RecordingAuthorizer {
+    fn allow_all() -> Self {
+        Self {
+            contexts: Arc::new(Mutex::new(Vec::new())),
+            deny_at: None,
+        }
+    }
+
+    fn deny_at(index: usize) -> Self {
+        Self {
+            contexts: Arc::new(Mutex::new(Vec::new())),
+            deny_at: Some(index),
+        }
+    }
+
+    fn contexts(&self) -> Vec<ActionAuthorizationContext> {
+        self.contexts.lock().unwrap().clone()
+    }
+}
+
+impl ActionAuthorizer for RecordingAuthorizer {
+    fn authorize(&self, context: &ActionAuthorizationContext) -> AuthorizationDecision {
+        let mut contexts = self.contexts.lock().unwrap();
+        let index = contexts.len();
+        contexts.push(context.clone());
+        if self.deny_at == Some(index) {
+            AuthorizationDecision::Deny(AuthorizationReason::MutationNotGranted)
+        } else {
+            AuthorizationDecision::Allow
+        }
+    }
 }
 
 fn reference<A: ActionAuthorizer>(executor: &StaticActionExecutor<A>, id: &str) -> ElementRef {
@@ -705,4 +744,326 @@ fn semantic_metadata_is_secret_safe_and_native_only() {
     let debug = format!("{document:?} {password:?} {:?}", document.hidden_controls());
     assert!(!debug.contains("hidden-secret"));
     assert!(!debug.contains("field-secret"));
+}
+
+#[tokio::test]
+async fn valid_dependent_batch_matches_sequential_execution() {
+    let server = FixtureServer::spawn().await;
+    let authorizer = RecordingAuthorizer::allow_all();
+    let mut batched = executor(&server, 100, authorizer.clone()).await;
+    server.take_requests();
+    let initial = current_state(&batched);
+    let query = reference(&batched, "query");
+    let agree = reference(&batched, "agree");
+    let submit = reference(&batched, "get-submit");
+    let batch = ActionBatch::new(
+        initial,
+        vec![
+            Action::fill(query, "batched value").unwrap(),
+            Action::check(agree),
+            Action::submit(submit),
+        ],
+        BatchFailurePolicy::StopOnFailure,
+    )
+    .unwrap();
+    let outcome = batched
+        .execute_batch(batch, &CancellationToken::new())
+        .await
+        .unwrap();
+    let batched_requests = server.take_requests();
+
+    assert_eq!(outcome.initial_state(), initial);
+    assert_ne!(outcome.final_state(), initial);
+    assert_eq!(outcome.items().len(), 3);
+    assert!(
+        outcome
+            .items()
+            .iter()
+            .all(|item| item.succeeded().is_some())
+    );
+    assert_eq!(outcome.diagnostics().action_count(), 3);
+    assert_eq!(outcome.diagnostics().executed_count(), 3);
+    assert_eq!(outcome.diagnostics().failure_count(), 0);
+    assert_eq!(outcome.diagnostics().decision_boundaries_avoided(), 2);
+    assert_eq!(authorizer.contexts().len(), 3);
+    assert_eq!(
+        outcome
+            .audit_events()
+            .iter()
+            .filter(|event| event.phase() == BatchAuditPhase::Authorized)
+            .count(),
+        3
+    );
+    assert_eq!(
+        batched_requests,
+        vec![CapturedRequest {
+            method: "GET".to_owned(),
+            target: "/search?existing=1&dup=hidden&dup=batched+value&flag=yes&choice=a&commit=1"
+                .to_owned(),
+            body: String::new(),
+        }]
+    );
+
+    let mut sequential = executor(&server, 101, allow).await;
+    server.take_requests();
+    let query = reference(&sequential, "query");
+    sequential
+        .execute(
+            request(&sequential, Action::fill(query, "batched value").unwrap()),
+            &CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+    let agree = reference(&sequential, "agree");
+    sequential
+        .execute(
+            request(&sequential, Action::check(agree)),
+            &CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+    let submit = reference(&sequential, "get-submit");
+    sequential
+        .execute(
+            request(&sequential, Action::submit(submit)),
+            &CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(server.take_requests(), batched_requests);
+}
+
+#[tokio::test]
+async fn invalid_middle_and_stale_batches_execute_nothing() {
+    let server = FixtureServer::spawn().await;
+    let authorizer = RecordingAuthorizer::allow_all();
+    let mut executor = executor(&server, 102, authorizer.clone()).await;
+    server.take_requests();
+    let initial = current_state(&executor);
+    let query = reference(&executor, "query");
+    let agree = reference(&executor, "agree");
+    let missing = ElementRef::new(SessionId::new(102).unwrap(), 999_999).unwrap();
+    let invalid = ActionBatch::new(
+        initial,
+        vec![
+            Action::fill(query, "must-not-commit").unwrap(),
+            Action::follow(missing),
+            Action::check(agree),
+        ],
+        BatchFailurePolicy::StopOnFailure,
+    )
+    .unwrap();
+    let failure = executor
+        .execute_batch(invalid, &CancellationToken::new())
+        .await
+        .unwrap_err();
+    assert_eq!(failure.index(), 1);
+    assert_eq!(
+        failure.failure().failure().class(),
+        FailureClass::MissingReference
+    );
+    let rejected = failure.audit_events().last().unwrap();
+    assert_eq!(rejected.phase(), BatchAuditPhase::PreflightRejected);
+    assert_eq!(rejected.target(), Some(missing));
+    assert_eq!(rejected.side_effect(), Some(SideEffectStatus::NotStarted));
+    assert_eq!(current_state(&executor), initial);
+    assert!(server.take_requests().is_empty());
+    assert_eq!(authorizer.contexts().len(), 1);
+    assert!(!format!("{failure:?}").contains("must-not-commit"));
+
+    executor
+        .execute(
+            ActionRequest::new(initial, Action::check(agree)).unwrap(),
+            &CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+    let after_check = current_state(&executor);
+    let stale = ActionBatch::new(
+        initial,
+        vec![Action::uncheck(agree)],
+        BatchFailurePolicy::StopOnFailure,
+    )
+    .unwrap();
+    let stale_failure = executor
+        .execute_batch(stale, &CancellationToken::new())
+        .await
+        .unwrap_err();
+    assert_eq!(stale_failure.index(), 0);
+    assert_eq!(
+        stale_failure.failure().failure().class(),
+        FailureClass::StaleState
+    );
+    assert_eq!(current_state(&executor), after_check);
+    assert!(server.take_requests().is_empty());
+}
+
+#[tokio::test]
+async fn reference_after_navigation_boundary_is_rejected_before_network() {
+    let server = FixtureServer::spawn().await;
+    let mut executor = executor(&server, 103, allow).await;
+    server.take_requests();
+    let initial = current_state(&executor);
+    let next = reference(&executor, "next");
+    let query = reference(&executor, "query");
+    let batch = ActionBatch::new(
+        initial,
+        vec![
+            Action::follow(next),
+            Action::fill(query, "unreachable").unwrap(),
+        ],
+        BatchFailurePolicy::StopOnFailure,
+    )
+    .unwrap();
+    let failure = executor
+        .execute_batch(batch, &CancellationToken::new())
+        .await
+        .unwrap_err();
+    assert_eq!(failure.index(), 1);
+    assert_eq!(
+        failure.failure().failure().class(),
+        FailureClass::InvalidInput
+    );
+    assert_eq!(current_state(&executor), initial);
+    assert!(server.take_requests().is_empty());
+}
+
+#[tokio::test]
+async fn runtime_partial_result_honors_both_failure_policies_and_retry_is_stale() {
+    let server = FixtureServer::spawn().await;
+    let mut stopped = executor(&server, 104, allow).await;
+    server.take_requests();
+    let initial = current_state(&stopped);
+    let query = reference(&stopped, "query");
+    let binary = reference(&stopped, "binary");
+    let actions = vec![
+        Action::fill(query, "committed-prefix").unwrap(),
+        Action::follow(binary),
+        Action::navigate(server.url("/next")),
+    ];
+    let stop_batch =
+        ActionBatch::new(initial, actions.clone(), BatchFailurePolicy::StopOnFailure).unwrap();
+    let outcome = stopped
+        .execute_batch(stop_batch.clone(), &CancellationToken::new())
+        .await
+        .unwrap();
+    assert!(outcome.items()[0].succeeded().is_some());
+    let failure = outcome.items()[1].failure().unwrap();
+    assert_eq!(failure.failure().class(), FailureClass::Parsing);
+    assert_eq!(failure.side_effect(), SideEffectStatus::NetworkCompleted);
+    assert_eq!(
+        outcome.items()[2].skip_reason(),
+        Some(BatchSkipReason::PriorFailure)
+    );
+    assert_eq!(outcome.diagnostics().executed_count(), 2);
+    assert_eq!(outcome.diagnostics().failure_count(), 1);
+    assert_eq!(server.take_requests()[0].target, "/binary");
+    let committed = current_state(&stopped);
+    assert_ne!(committed, initial);
+
+    let retry = stopped
+        .execute_batch(stop_batch, &CancellationToken::new())
+        .await
+        .unwrap_err();
+    assert_eq!(retry.failure().failure().class(), FailureClass::StaleState);
+    assert_eq!(current_state(&stopped), committed);
+
+    let mut continued = executor(&server, 105, allow).await;
+    server.take_requests();
+    let initial = current_state(&continued);
+    let query = reference(&continued, "query");
+    let binary = reference(&continued, "binary");
+    let continue_batch = ActionBatch::new(
+        initial,
+        vec![
+            Action::fill(query, "committed-prefix").unwrap(),
+            Action::follow(binary),
+            Action::navigate(server.url("/next")),
+        ],
+        BatchFailurePolicy::ContinueIndependent,
+    )
+    .unwrap();
+    let continued_outcome = continued
+        .execute_batch(continue_batch, &CancellationToken::new())
+        .await
+        .unwrap();
+    assert!(continued_outcome.items()[0].succeeded().is_some());
+    assert!(continued_outcome.items()[1].failure().is_some());
+    assert!(continued_outcome.items()[2].succeeded().is_some());
+    assert_eq!(continued_outcome.diagnostics().executed_count(), 3);
+    assert_eq!(continued_outcome.diagnostics().failure_count(), 1);
+    assert_eq!(
+        continued.store().current().unwrap().page().url().as_str(),
+        server.url("/next").as_str()
+    );
+    assert_eq!(
+        server
+            .take_requests()
+            .into_iter()
+            .map(|request| request.target)
+            .collect::<Vec<_>>(),
+        vec!["/binary".to_owned(), "/next".to_owned()]
+    );
+}
+
+#[tokio::test]
+async fn authorization_denial_is_atomic_redacted_and_concurrent_batches_go_stale() {
+    let server = FixtureServer::spawn().await;
+    let authorizer = RecordingAuthorizer::deny_at(1);
+    let mut denied = executor(&server, 106, authorizer.clone()).await;
+    server.take_requests();
+    let initial = current_state(&denied);
+    let query = reference(&denied, "query");
+    let agree = reference(&denied, "agree");
+    let batch = ActionBatch::new(
+        initial,
+        vec![
+            Action::fill(query, "authorization-secret").unwrap(),
+            Action::check(agree),
+        ],
+        BatchFailurePolicy::StopOnFailure,
+    )
+    .unwrap();
+    let failure = denied
+        .execute_batch(batch, &CancellationToken::new())
+        .await
+        .unwrap_err();
+    assert_eq!(failure.index(), 1);
+    assert_eq!(
+        failure.failure().failure().class(),
+        FailureClass::AuthorizationDenied
+    );
+    assert_eq!(authorizer.contexts().len(), 2);
+    assert_eq!(current_state(&denied), initial);
+    assert!(server.take_requests().is_empty());
+    assert!(!format!("{failure:?}").contains("authorization-secret"));
+
+    let mut executor = executor(&server, 107, allow).await;
+    server.take_requests();
+    let initial = current_state(&executor);
+    let agree = reference(&executor, "agree");
+    let first = ActionBatch::new(
+        initial,
+        vec![Action::check(agree)],
+        BatchFailurePolicy::StopOnFailure,
+    )
+    .unwrap();
+    let competing = ActionBatch::new(
+        initial,
+        vec![Action::check(agree)],
+        BatchFailurePolicy::StopOnFailure,
+    )
+    .unwrap();
+    let winner = executor
+        .execute_batch(first, &CancellationToken::new())
+        .await
+        .unwrap();
+    let winner_state = winner.final_state();
+    let loser = executor
+        .execute_batch(competing, &CancellationToken::new())
+        .await
+        .unwrap_err();
+    assert_eq!(loser.failure().failure().class(), FailureClass::StaleState);
+    assert_eq!(current_state(&executor), winner_state);
+    assert!(server.take_requests().is_empty());
 }

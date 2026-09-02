@@ -21,7 +21,8 @@ use crate::model::{
     ActionOutcome, AuthorizationDecision, NetworkEvidence, SideEffectStatus,
 };
 
-enum Effect {
+#[derive(Clone)]
+pub(crate) enum Effect {
     Fill {
         source: SourceNodeId,
         value: SensitiveText<MAX_CONTROL_VALUE_BYTES>,
@@ -37,17 +38,18 @@ enum Effect {
     Network(NavigationRequest),
 }
 
-struct Prepared {
-    effective: ActionKind,
-    authorization: ActionAuthorizationContext,
-    effect: Effect,
+#[derive(Clone)]
+pub(crate) struct Prepared {
+    pub(crate) effective: ActionKind,
+    pub(crate) authorization: ActionAuthorizationContext,
+    pub(crate) effect: Effect,
 }
 
 pub struct StaticActionExecutor<A> {
     session: StaticSession,
     extractor: HtmlSemanticExtractor,
-    store: SemanticStateStore,
-    authorizer: A,
+    pub(crate) store: SemanticStateStore,
+    pub(crate) authorizer: A,
     capabilities: CapabilityReport,
 }
 
@@ -127,62 +129,47 @@ impl<A: ActionAuthorizer> StaticActionExecutor<A> {
                 requested,
             )
             .map_err(ActionExecutionFailure::preflight)?;
-        if let AuthorizationDecision::Deny(reason) =
-            self.authorizer.authorize(&prepared.authorization)
-        {
-            return Err(ActionExecutionFailure::preflight(
-                OperationFailure::AuthorizationDenied {
-                    operation: prepared.authorization.operation(),
-                    reason,
-                },
-            ));
-        }
+        self.authorize_prepared(&prepared)
+            .map_err(ActionExecutionFailure::preflight)?;
+        self.execute_prepared(
+            requested,
+            request.expected_state(),
+            prepared,
+            cancellation,
+            started,
+        )
+        .await
+    }
 
+    pub(crate) async fn execute_prepared(
+        &mut self,
+        requested: ActionKind,
+        expected_state: StateId,
+        prepared: Prepared,
+        cancellation: &CancellationToken,
+        started: Instant,
+    ) -> Result<ActionOutcome, ActionExecutionFailure> {
         let (update, network) = match prepared.effect {
             Effect::Fill { source, value } => {
-                let mut document = self
-                    .current_document(request.expected_state())
-                    .map_err(ActionExecutionFailure::preflight)?;
-                if !document.fill_static_control(source, value) {
-                    return Err(ActionExecutionFailure::preflight(invariant(
-                        "validated_fill_failed",
-                    )));
-                }
-                let update = self
-                    .store
-                    .update(document, TransitionCause::Action(requested))
-                    .map_err(ActionExecutionFailure::preflight)?;
-                (update, None)
+                let effect = Effect::Fill { source, value };
+                (
+                    self.apply_local_effect(requested, expected_state, &effect)?,
+                    None,
+                )
             }
             Effect::Checked { source, checked } => {
-                let mut document = self
-                    .current_document(request.expected_state())
-                    .map_err(ActionExecutionFailure::preflight)?;
-                if !document.set_static_checked(source, checked) {
-                    return Err(ActionExecutionFailure::preflight(invariant(
-                        "validated_check_failed",
-                    )));
-                }
-                let update = self
-                    .store
-                    .update(document, TransitionCause::Action(requested))
-                    .map_err(ActionExecutionFailure::preflight)?;
-                (update, None)
+                let effect = Effect::Checked { source, checked };
+                (
+                    self.apply_local_effect(requested, expected_state, &effect)?,
+                    None,
+                )
             }
             Effect::Select { select, option } => {
-                let mut document = self
-                    .current_document(request.expected_state())
-                    .map_err(ActionExecutionFailure::preflight)?;
-                if !document.select_static_option(select, option) {
-                    return Err(ActionExecutionFailure::preflight(invariant(
-                        "validated_select_failed",
-                    )));
-                }
-                let update = self
-                    .store
-                    .update(document, TransitionCause::Action(requested))
-                    .map_err(ActionExecutionFailure::preflight)?;
-                (update, None)
+                let effect = Effect::Select { select, option };
+                (
+                    self.apply_local_effect(requested, expected_state, &effect)?,
+                    None,
+                )
             }
             Effect::Network(navigation) => {
                 let method = navigation.method();
@@ -224,6 +211,58 @@ impl<A: ActionAuthorizer> StaticActionExecutor<A> {
         ))
     }
 
+    pub(crate) fn authorize_prepared(&self, prepared: &Prepared) -> Result<(), OperationFailure> {
+        match self.authorizer.authorize(&prepared.authorization) {
+            AuthorizationDecision::Allow => Ok(()),
+            AuthorizationDecision::Deny(reason) => Err(OperationFailure::AuthorizationDenied {
+                operation: prepared.authorization.operation(),
+                reason,
+            }),
+        }
+    }
+
+    pub(crate) fn simulate_prepared(
+        &mut self,
+        requested: ActionKind,
+        expected_state: StateId,
+        prepared: &Prepared,
+    ) -> Result<bool, ActionExecutionFailure> {
+        if matches!(prepared.effect, Effect::Network(_)) {
+            return Ok(false);
+        }
+        self.apply_local_effect(requested, expected_state, &prepared.effect)?;
+        Ok(true)
+    }
+
+    fn apply_local_effect(
+        &mut self,
+        requested: ActionKind,
+        expected_state: StateId,
+        effect: &Effect,
+    ) -> Result<mawr_state::StateUpdate, ActionExecutionFailure> {
+        let mut document = self
+            .current_document(expected_state)
+            .map_err(ActionExecutionFailure::preflight)?;
+        let applied = match effect {
+            Effect::Fill { source, value } => document.fill_static_control(*source, value.clone()),
+            Effect::Checked { source, checked } => document.set_static_checked(*source, *checked),
+            Effect::Select { select, option } => document.select_static_option(*select, *option),
+            Effect::Network(_) => {
+                return Err(ActionExecutionFailure::preflight(invariant(
+                    "network_effect_in_local_path",
+                )));
+            }
+        };
+        if !applied {
+            return Err(ActionExecutionFailure::preflight(invariant(
+                "validated_local_action_failed",
+            )));
+        }
+        self.store
+            .update(document, TransitionCause::Action(requested))
+            .map_err(ActionExecutionFailure::preflight)
+    }
+
     fn current_document(&self, expected: StateId) -> Result<SemanticDocument, OperationFailure> {
         self.ensure_current(expected)?;
         Ok(self
@@ -234,7 +273,7 @@ impl<A: ActionAuthorizer> StaticActionExecutor<A> {
             .clone())
     }
 
-    fn prepare(
+    pub(crate) fn prepare(
         &self,
         expected: StateId,
         action: Action,
@@ -683,7 +722,7 @@ impl<A: ActionAuthorizer> StaticActionExecutor<A> {
         }
     }
 
-    fn ensure_current(&self, expected: StateId) -> Result<(), OperationFailure> {
+    pub(crate) fn ensure_current(&self, expected: StateId) -> Result<(), OperationFailure> {
         if expected.session() != self.store.session() {
             return Err(OperationFailure::session_mismatch(
                 "action_state_session",

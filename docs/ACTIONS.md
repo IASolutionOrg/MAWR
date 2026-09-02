@@ -1,6 +1,6 @@
 # Authorized static actions: implemented M7 boundary
 
-M7 adds the private `mawr-actions` crate. It executes one typed `ActionRequest` against the current `mawr-state` state through the existing native transport and semantic extractor. This remains a Rust library boundary: there is no public wire format, CLI command, MCP tool, batching layer, JavaScript engine, visual click, or upload implementation.
+M7 adds the private `mawr-actions` crate. It executes one typed `ActionRequest` against the current `mawr-state` state through the existing native transport and semantic extractor. M8 composes this boundary into [preflighted action batches](BATCHES.md). There is still no public wire format, CLI command, MCP tool, JavaScript engine, visual click, or upload implementation.
 
 ## Preflight and authority
 

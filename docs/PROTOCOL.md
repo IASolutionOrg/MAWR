@@ -47,7 +47,7 @@ An action request names the expected state. A stale expected state prevents exec
 
 ## Batches
 
-Independent deterministic operations may be grouped to reduce model round-trips. Batch semantics must define ordering, validation, stop/continue policy, partial results, and resulting state. A batch cannot weaken per-action authorization or conceal side effects. Implementations should favor a fail-before-side-effect policy when preconditions can be checked upfront.
+The internal M8 Rust boundary groups 1–64 deterministic operations to reduce caller decision boundaries. It defines ordering, whole-batch cloned-state preflight, `StopOnFailure` or `ContinueIndependent`, per-item partial results, audit events, and resulting state. A batch cannot weaken per-action authorization or conceal side effects. Reference-bearing operations after a network boundary are rejected before execution because their state cannot be preflighted; only independent absolute navigations may follow. The external encoding and versioned protocol representation remain M10 work.
 
 ## Results and state transitions
 

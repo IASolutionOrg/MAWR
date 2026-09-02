@@ -12,6 +12,7 @@ The public documentation is complete without private maintainer files. Each dura
 - Implemented complete observations: [OBSERVATIONS.md](OBSERVATIONS.md)
 - Implemented relevance and budgeting: [RELEVANCE.md](RELEVANCE.md)
 - Implemented authorized static actions: [ACTIONS.md](ACTIONS.md)
+- Implemented deterministic action batches: [BATCHES.md](BATCHES.md)
 - Engine contract: [ENGINE-CONTRACT.md](ENGINE-CONTRACT.md)
 - Agent protocol: [PROTOCOL.md](PROTOCOL.md)
 - Encoding architecture: [ENCODING.md](ENCODING.md)

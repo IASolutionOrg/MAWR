@@ -14,7 +14,7 @@ use crate::model::{
     StableRelationship, StateDiagnostics, StateUpdate, StoredSemanticUnit, StoredState,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SemanticStateStore {
     session: SessionId,
     engine: EngineIdentity,
